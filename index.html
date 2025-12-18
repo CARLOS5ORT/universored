@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro - Stream Fix</title>
+    <title>Voice Master - Pro Control</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
@@ -10,19 +10,29 @@
         body { margin: 0; background: #050508; color: #00f2ff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #setup-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,40,0.95); padding: 40px; border: 2px solid #00f2ff; border-radius: 20px; text-align: center; z-index: 100; box-shadow: 0 0 50px rgba(0,242,255,0.2); backdrop-filter: blur(10px); }
         .hidden { display: none !important; }
-        button { background: #00f2ff; color: #000; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; cursor: pointer; border-radius: 5px; transition: 0.3s; }
-        button:hover { background: #ff00ff; color: white; }
+        
+        /* Controles de reproducción */
+        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 50px; border: 1px solid #ff00ff; z-index: 10; }
+        .btn-ctrl { background: transparent; border: 1px solid #00f2ff; color: #00f2ff; padding: 10px 20px; cursor: pointer; border-radius: 25px; font-weight: bold; transition: 0.3s; }
+        .btn-ctrl:hover { background: #00f2ff; color: #000; }
+        
         #hud { position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; }
+        #status { color: #ff00ff; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div id="setup-panel">
-        <h1>AFINADOR VISUAL 2.0</h1>
-        <p>1. Selecciona MP3 -> 2. Pulsa el botón</p>
+        <h1>AFINADOR VISUAL 3.0</h1>
         <input type="file" id="audioFile" accept="audio/*"><br><br>
-        <button id="mainBtn">INICIAR SISTEMA</button>
-        <div id="status" style="margin-top:20px; color: #ff00ff;">Esperando...</div>
+        <button onclick="iniciarTodo()" style="padding:15px 30px; background:#00f2ff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">INICIAR ENTRENAMIENTO</button>
+        <div id="status">Sube un MP3 para comenzar</div>
+    </div>
+
+    <div id="controls" class="hidden">
+        <button class="btn-ctrl" onclick="saltar(-10)">-10s</button>
+        <button class="btn-ctrl" id="playPauseBtn" onclick="togglePlay()">PAUSE</button>
+        <button class="btn-ctrl" onclick="saltar(10)">+10s</button>
     </div>
 
     <div id="hud" class="hidden">
@@ -40,48 +50,69 @@
 
         function setup() {
             createCanvas(windowWidth, windowHeight);
-            for (let i = 0; i < 500; i++) {
+            generarNotas();
+        }
+
+        function generarNotas() {
+            dots = [];
+            for (let i = 0; i < 600; i++) {
                 dots.push({ x: width + (i * 250), y: random(100, height - 100), hit: false });
             }
         }
 
-        document.getElementById('mainBtn').onclick = async () => {
+        async function iniciarTodo() {
             audioCtx = getAudioContext();
             await audioCtx.resume();
             
             const fileInput = document.getElementById('audioFile');
-            if (!fileInput.files[0]) { alert("Sube un MP3 primero"); return; }
+            if (!fileInput.files[0]) { alert("Primero selecciona un archivo MP3"); return; }
             
-            document.getElementById('status').innerText = "CARGANDO AUDIO...";
+            document.getElementById('status').innerText = "CONFIGURANDO AUDIO...";
             const url = URL.createObjectURL(fileInput.files[0]);
             
-            song = loadSound(url, () => {
-                document.getElementById('status').innerText = "SOLICITANDO MICRÓFONO...";
-                iniciarProceso();
+            song = loadSound(url, async () => {
+                document.getElementById('status').innerText = "ACTIVANDO MICRÓFONO...";
+                mic = new p5.AudioIn();
+                await mic.start();
+                
+                if (mic.stream) {
+                    cargarIA();
+                } else {
+                    alert("No se pudo acceder al micrófono.");
+                }
             });
-        };
+        }
 
-        async function iniciarProceso() {
-    try {
-        // Pedir permiso de audio directamente al navegador
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        document.getElementById('status').innerText = "CARGANDO MODELO IA...";
-        const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
-        
-        // Inicializar ml5 con el stream directo
-        pitch = ml5.pitchDetection(modelURL, audioCtx, stream, () => {
-            document.getElementById('setup-panel').classList.add('hidden');
-            document.getElementById('hud').classList.remove('hidden');
-            song.play();
-            isReady = true;
-            listen();
-        });
-    } catch (err) {
-        document.getElementById('status').innerText = "ERROR: Micrófono no autorizado o no encontrado.";
-        console.error("Error de acceso al micro:", err);
-    }
-}
+        function cargarIA() {
+            const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
+            pitch = ml5.pitchDetection(modelURL, audioCtx, mic.stream, () => {
+                document.getElementById('setup-panel').classList.add('hidden');
+                document.getElementById('controls').classList.remove('hidden');
+                document.getElementById('hud').classList.remove('hidden');
+                song.play();
+                isReady = true;
+                listen();
+            });
+        }
+
+        // LÓGICA DE CONTROL
+        function togglePlay() {
+            if (song.isPlaying()) {
+                song.pause();
+                document.getElementById('playPauseBtn').innerText = "PLAY";
+            } else {
+                song.play();
+                document.getElementById('playPauseBtn').innerText = "PAUSE";
+            }
+        }
+
+        function saltar(segundos) {
+            let tiempoActual = song.currentTime();
+            let nuevoTiempo = tiempoActual + segundos;
+            // Evitar que el tiempo sea menor a 0 o mayor a la duración
+            nuevoTiempo = constrain(nuevoTiempo, 0, song.duration());
+            song.jump(nuevoTiempo);
+        }
 
         function listen() {
             if (!isReady) return;
@@ -95,22 +126,32 @@
             background(5, 5, 15);
             if (!isReady) return;
 
+            // Dibujar escala de notas
             drawNoteScale();
 
-            for (let d of dots) {
-                d.x -= 4;
-                strokeWeight(8);
-                if (d.hit) stroke(0, 255, 150); else stroke(255, 0, 255, 100);
-                line(d.x, d.y, d.x + 150, d.y);
+            // Sincronizar movimiento de las notas con el tiempo de la canción
+            let timeShift = song.currentTime() * 100; // Ajuste de velocidad visual
 
-                if (d.x < width/2 && d.x > width/2 - 150) {
-                    let userY = freqToY(freq);
-                    if (freq > 0 && Math.abs(userY - d.y) < 35) {
-                        if (!d.hit) { d.hit = true; score += 10; }
+            for (let d of dots) {
+                // Las notas se mueven basadas en el tiempo real de la canción
+                let currentX = d.x - timeShift;
+                
+                if (currentX > -200 && currentX < width + 200) {
+                    strokeWeight(8);
+                    if (d.hit) stroke(0, 255, 150); else stroke(255, 0, 255, 100);
+                    line(currentX, d.y, currentX + 150, d.y);
+
+                    // Colisión
+                    if (currentX < width/2 && currentX > width/2 - 150) {
+                        let userY = freqToY(freq);
+                        if (freq > 0 && Math.abs(userY - d.y) < 35) {
+                            if (!d.hit) { d.hit = true; score += 10; }
+                        }
                     }
                 }
             }
 
+            // Indicador de Voz
             if (freq > 0) {
                 let y = freqToY(freq);
                 fill(255); noStroke();
@@ -122,6 +163,9 @@
                 document.getElementById('noteName').innerText = noteList[midi % 12];
             }
             document.getElementById('scoreDisplay').innerText = "PUNTOS: " + score;
+            
+            // Barra de progreso de la canción (abajo)
+            drawProgressBar();
         }
 
         function drawNoteScale() {
@@ -131,18 +175,25 @@
                 let f = 440 * Math.pow(2, (i - 69) / 12);
                 let y = freqToY(f);
                 if (y > 0 && y < height) {
-                    stroke(255, 20);
+                    stroke(255, 15);
                     line(60, y, width, y);
                     noStroke();
-                    fill(i % 12 === 0 ? '#00f2ff' : 150);
+                    fill(i % 12 === 0 ? '#00f2ff' : 100);
                     text(noteList[i % 12] + Math.floor(i/12-1), 20, y);
                 }
             }
         }
 
+        function drawProgressBar() {
+            let w = map(song.currentTime(), 0, song.duration(), 0, width);
+            stroke('#ff00ff');
+            strokeWeight(4);
+            line(0, height - 2, w, height - 2);
+        }
+
         function freqToY(f) {
             if (f <= 0) return -100;
-            return map(log(f), log(80), log(1000), height - 50, 50);
+            return map(log(f), log(80), log(1000), height - 80, 50);
         }
 
         function windowResized() { resizeCanvas(windowWidth, windowHeight); }
