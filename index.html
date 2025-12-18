@@ -2,106 +2,65 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro - Full Version 2025</title>
+    <title>Voice Master Pro - Multi-Song Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
     <style>
         body { margin: 0; background: #050508; color: #00f2ff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        
-        /* Panel de Carga */
-        #setup-panel { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(20,20,40,0.95); padding: 40px; border: 2px solid #00f2ff; 
-            border-radius: 20px; text-align: center; z-index: 100; backdrop-filter: blur(10px); 
-        }
-
-        /* Footer de Controles */
-        #footer-controls {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            background: rgba(0,0,0,0.9); border-top: 1px solid #333;
-            padding: 10px 0 25px 0; z-index: 10;
-        }
-
-        #progress-container {
-            width: 90%; height: 12px; background: #222; margin: 10px auto;
-            border-radius: 6px; position: relative; cursor: pointer;
-            border: 1px solid #444; overflow: hidden;
-        }
-
-        #progress-bar {
-            width: 0%; height: 100%; background: linear-gradient(90deg, #ff00ff, #00f2ff);
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.7); pointer-events: none;
-        }
-
-        #controls-row {
-            display: flex; justify-content: center; align-items: center; gap: 15px;
-        }
-
-        .btn-ctrl { 
-            background: transparent; border: 1px solid #00f2ff; color: #00f2ff; 
-            padding: 8px 20px; cursor: pointer; border-radius: 20px; 
-            font-weight: bold; transition: 0.3s;
-        }
-
+        #setup-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,40,0.95); padding: 40px; border: 2px solid #00f2ff; border-radius: 20px; text-align: center; z-index: 100; backdrop-filter: blur(10px); width: 350px; }
+        #footer-controls { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); border-top: 1px solid #333; padding: 10px 0 25px 0; z-index: 10; }
+        #progress-container { width: 90%; height: 12px; background: #222; margin: 10px auto; border-radius: 6px; cursor: pointer; border: 1px solid #444; overflow: hidden; }
+        #progress-bar { width: 0%; height: 100%; background: #00f2ff; box-shadow: 0 0 10px #00f2ff; pointer-events: none; }
+        #controls-row { display: flex; justify-content: center; align-items: center; gap: 12px; }
+        .btn-ctrl { background: transparent; border: 1px solid #00f2ff; color: #00f2ff; padding: 8px 15px; cursor: pointer; border-radius: 20px; font-weight: bold; font-size: 11px; text-transform: uppercase; }
         .btn-ctrl:hover { background: #00f2ff; color: #000; }
-        
         .btn-stop { border-color: #ff4444; color: #ff4444; }
-        .btn-stop:hover { background: #ff4444; color: #fff; border-color: #ff4444; }
-
-        #time-info { font-family: monospace; font-size: 14px; color: #888; width: 130px; text-align: center; }
+        .btn-change { border-color: #ffaa00; color: #ffaa00; }
         #hud { position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; }
-        .hidden { display: none !important; }
         #status { color: #ff00ff; margin-top: 20px; font-weight: bold; }
+        input[type="file"] { margin: 15px 0; font-size: 12px; }
     </style>
 </head>
 <body>
 
     <div id="setup-panel">
-        <h1>VOICE MASTER PRO</h1>
-        <p>Entrenamiento Vocal con IA</p>
-        <input type="file" id="audioFile" accept="audio/*">
-        <br><br>
-        <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff; color:black">CONECTAR SISTEMA</button>
-        <div id="status">Sube un MP3 para comenzar</div>
+        <h1 style="margin:0">VOICE MASTER</h1>
+        <p>Análisis de Tono Real</p>
+        <input type="file" id="audioFile" accept="audio/*"><br>
+        <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff; color:black">CARGAR CANCIÓN</button>
+        <div id="status">Espera a cargar el MP3</div>
     </div>
 
     <div id="footer-controls" class="hidden">
-        <div id="progress-container" onclick="manejarClickBarra(event)">
-            <div id="progress-bar"></div>
-        </div>
+        <div id="progress-container" onclick="manejarClickBarra(event)"><div id="progress-bar"></div></div>
         <div id="controls-row">
+            <button class="btn-ctrl btn-change" onclick="cambiarCancion()">Nueva Canción</button>
             <button class="btn-ctrl" onclick="saltar(-10)">-10s</button>
             <button class="btn-ctrl" id="playPauseBtn" onclick="togglePlay()">PAUSA</button>
             <button class="btn-ctrl btn-stop" onclick="detenerSistema()">STOP</button>
             <button class="btn-ctrl" onclick="saltar(10)">+10s</button>
-            <div id="time-info">00:00 / 00:00</div>
+            <div id="time-info" style="color:#888; font-family:monospace; width: 110px; font-size: 12px;">00:00 / 00:00</div>
         </div>
     </div>
 
     <div id="hud" class="hidden">
-        <div style="font-size: 65px; font-weight: bold; color: #ff00ff;" id="noteName">--</div>
-        <div id="scoreDisplay" style="font-size: 20px;">PUNTOS: 0</div>
+        <div style="font-size: 60px; font-weight: bold; color: #ff00ff;" id="noteName">--</div>
+        <div id="scoreDisplay" style="font-size: 18px; color: #00f2ff;">MODO: IA DUAL</div>
     </div>
 
     <script>
-        let mic, song, audioCtx, pitchUser;
+        let mic, song, audioCtx;
+        let pitchUser, pitchSong;
         let isReady = false;
         let freqUser = 0;
-        let score = 0;
-        let dots = []; 
+        let freqSong = 0;
+        let history = [];
+        const MAX_HISTORY = 400; 
         const noteList = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
         function setup() {
             createCanvas(windowWidth, windowHeight);
-            generarNotas();
-        }
-
-        function generarNotas() {
-            dots = [];
-            for (let i = 0; i < 1200; i++) {
-                dots.push({ x: width + (i * 260), y: random(150, height - 200), hit: false });
-            }
         }
 
         async function iniciarTodo() {
@@ -109,155 +68,131 @@
             if (audioCtx.state === 'suspended') await audioCtx.resume();
             
             const fileInput = document.getElementById('audioFile');
-            if (!fileInput.files[0]) { alert("Por favor, selecciona un MP3."); return; }
+            if (!fileInput.files[0]) { alert("Selecciona un archivo primero"); return; }
             
             const status = document.getElementById('status');
-            status.innerText = "ACCEDIENDO AL MICRO Y CARGANDO MODELO...";
+            status.innerText = "SINCRO IA...";
             
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const url = URL.createObjectURL(fileInput.files[0]);
                 
+                // Si ya había una canción, la removemos
+                if(song) song.stop();
+
                 song = loadSound(url, () => {
                     const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
+                    
                     pitchUser = ml5.pitchDetection(modelURL, audioCtx, stream, () => {
-                        document.getElementById('setup-panel').classList.add('hidden');
-                        document.getElementById('footer-controls').classList.remove('hidden');
-                        document.getElementById('hud').classList.remove('hidden');
-                        song.play();
-                        isReady = true;
-                        listen();
+                        pitchSong = ml5.pitchDetection(modelURL, audioCtx, song.bufferSource, () => {
+                            document.getElementById('setup-panel').classList.add('hidden');
+                            document.getElementById('footer-controls').classList.remove('hidden');
+                            document.getElementById('hud').classList.remove('hidden');
+                            song.play();
+                            isReady = true;
+                            startDetection();
+                        });
                     });
                 });
-            } catch (e) {
-                status.innerText = "ERROR DE MICRÓFONO: " + e.message;
-            }
+            } catch (e) { status.innerText = "Error: " + e.message; }
         }
 
-        function listen() {
+        function cambiarCancion() {
+            isReady = false;
+            if (song) song.stop();
+            history = [];
+            // Mostrar panel, ocultar juego
+            document.getElementById('setup-panel').classList.remove('hidden');
+            document.getElementById('footer-controls').classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('status').innerText = "Selecciona otra canción";
+        }
+
+        function startDetection() {
             if (!isReady) return;
-            pitchUser.getPitch((err, f) => {
-                if (f) freqUser = f;
-                listen();
+            pitchUser.getPitch((errU, fU) => {
+                if (fU) freqUser = fU; else freqUser = 0;
+                pitchSong.getPitch((errS, fS) => {
+                    if (fS) freqSong = fS; else freqSong = 0;
+                    if (song && song.isPlaying()) {
+                        history.push({ songY: freqToY(freqSong), userY: freqToY(freqUser) });
+                        if (history.length > MAX_HISTORY) history.shift();
+                    }
+                    startDetection();
+                });
             });
         }
 
         function detenerSistema() {
             if (song) {
-                song.stop(); // Reinicia audio a tiempo 0
-                score = 0;
-                freqUser = 0;
-                // Forzar reset manual de interfaz
+                song.stop();
+                history = []; 
                 document.getElementById('progress-bar').style.width = "0%";
                 document.getElementById('playPauseBtn').innerText = "PLAY";
                 document.getElementById('noteName').innerText = "--";
-                document.getElementById('scoreDisplay').innerText = "PUNTOS: 0";
-                
-                // Reiniciar estado de las notas
-                for(let d of dots) d.hit = false;
             }
-        }
-
-        function togglePlay() { 
-            if(song.isPlaying()) {
-                song.pause();
-                document.getElementById('playPauseBtn').innerText = "PLAY";
-            } else {
-                song.play();
-                document.getElementById('playPauseBtn').innerText = "PAUSA";
-            }
-        }
-
-        function saltar(s) {
-            if (!song) return;
-            let t = constrain(song.currentTime() + s, 0, song.duration());
-            song.jump(t);
-        }
-
-        function manejarClickBarra(e) {
-            if (!song || !isReady) return;
-            let rect = document.getElementById('progress-container').getBoundingClientRect();
-            let porcentaje = (e.clientX - rect.left) / rect.width;
-            song.jump(porcentaje * song.duration());
-        }
-
-        function formatTime(s) {
-            let min = floor(s / 60);
-            let sec = floor(s % 60);
-            return nf(min, 2) + ":" + nf(sec, 2);
         }
 
         function draw() {
             background(5, 5, 15);
             if (!isReady) return;
 
-            drawNoteScale();
-
-            // Desplazamiento de notas basado en el tiempo
-            let timeShift = song.currentTime() * 130; 
-
-            for (let d of dots) {
-                let currentX = d.x - timeShift;
-                if (currentX > -200 && currentX < width + 200) {
-                    strokeWeight(10);
-                    stroke(d.hit ? "#00ff96" : "rgba(255, 0, 255, 0.4)");
-                    line(currentX, d.y, currentX + 180, d.y);
-
-                    // Detección de colisión (Voz vs Nota)
-                    if (currentX < width/2 && currentX > width/2 - 180) {
-                        let userY = freqToY(freqUser);
-                        if (freqUser > 0 && Math.abs(userY - d.y) < 35) {
-                            if (!d.hit) { d.hit = true; score += 10; }
-                        }
-                    }
-                }
-            }
-
-            // Indicador de Voz del Usuario
-            if (freqUser > 0) {
-                let y = freqToY(freqUser);
-                fill(0, 242, 255, 60); noStroke(); ellipse(width/2, y, 50, 50);
-                fill(255); ellipse(width/2, y, 20, 20);
-                
-                let midi = Math.round(12 * (Math.log(freqUser / 440) / Math.log(2)) + 69);
-                document.getElementById('noteName').innerText = noteList[midi % 12] || "--";
-            } else {
-                document.getElementById('noteName').innerText = "--";
-            }
-            
-            updateInterface();
-        }
-
-        function drawNoteScale() {
-            textAlign(LEFT, CENTER); textSize(11);
+            // Escala de notas
             for (let i = 36; i < 84; i++) {
                 let y = freqToY(440 * Math.pow(2, (i - 69) / 12));
                 if (y > 0 && y < height) {
-                    stroke(255, 12); line(70, y, width, y);
-                    noStroke(); fill(i % 12 === 0 ? '#00f2ff' : 100);
-                    text(noteList[i % 12] + Math.floor(i/12-1), 30, y);
+                    stroke(255, 15); line(70, y, width, y);
                 }
             }
-            stroke(0, 242, 255, 30); line(70, 0, 70, height);
+
+            // Estela Canción (Magenta)
+            noFill(); stroke(255, 0, 255, 120); strokeWeight(3);
+            beginShape();
+            for (let i = 0; i < history.length; i++) {
+                let x = map(i, 0, history.length, 80, width - 50);
+                if (history[i].songY > 0) vertex(x, history[i].songY);
+            }
+            endShape();
+
+            // Estela Voz (Cian)
+            stroke(0, 242, 255); strokeWeight(5);
+            beginShape();
+            for (let i = 0; i < history.length; i++) {
+                let x = map(i, 0, history.length, 80, width - 50);
+                if (history[i].userY > 0) vertex(x, history[i].userY);
+            }
+            endShape();
+
+            updateUI();
         }
 
-        function updateInterface() {
-            if (!song) return;
+        function updateUI() {
+            if(!song) return;
             let cur = song.currentTime();
             let dur = song.duration();
-            if (dur > 0) {
-                let prg = (cur / dur) * 100;
-                document.getElementById('progress-bar').style.width = prg + "%";
-                document.getElementById('time-info').innerText = formatTime(cur) + " / " + formatTime(dur);
+            document.getElementById('progress-bar').style.width = ((cur/dur)*100) + "%";
+            document.getElementById('time-info').innerText = formatTime(cur) + " / " + formatTime(dur);
+            if (freqUser > 0) {
+                let midi = Math.round(12 * (Math.log(freqUser/440)/Math.log(2)) + 69);
+                document.getElementById('noteName').innerText = noteList[midi % 12] || "--";
             }
-            document.getElementById('scoreDisplay').innerText = "PUNTOS: " + score;
         }
 
-        function freqToY(f) {
-            if (f <= 80) return -100;
-            return map(log(f), log(80), log(1100), height - 180, 50);
+        function formatTime(s) {
+            let m = floor(s / 60); let sec = floor(s % 60);
+            return nf(m, 2) + ":" + nf(sec, 2);
         }
 
+        function togglePlay() { 
+            if(song.isPlaying()) { song.pause(); document.getElementById('playPauseBtn').innerText = "PLAY"; } 
+            else { song.play(); document.getElementById('playPauseBtn').innerText = "PAUSA"; }
+        }
+        function saltar(s) { song.jump(constrain(song.currentTime()+s, 0, song.duration())); }
+        function manejarClickBarra(e) {
+            let rect = document.getElementById('progress-container').getBoundingClientRect();
+            song.jump(((e.clientX - rect.left) / rect.width) * song.duration());
+        }
+        function freqToY(f) { return f <= 80 ? -100 : map(log(f), log(80), log(1100), height - 160, 50); }
         function windowResized() { resizeCanvas(windowWidth, windowHeight); }
     </script>
 </body>
