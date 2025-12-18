@@ -1,2 +1,0 @@
-# universored
-web universored
