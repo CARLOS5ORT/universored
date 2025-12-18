@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro - Full HUD</title>
+    <title>Voice Master Pro - Capas Corregidas</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
@@ -25,7 +25,7 @@
 
     <div id="setup-panel">
         <h1 style="margin:0">VOICE MASTER</h1>
-        <p>Afinación con Referencia Visual</p>
+        <p>Afinación Real IA</p>
         <input type="file" id="audioFile" accept="audio/*"><br><br>
         <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff; color:black">ENTRENAR</button>
     </div>
@@ -109,15 +109,16 @@
             background(5, 5, 15);
             if (!isReady) return;
 
-            // DIBUJAR LA PARRILLA DE NOTAS (TEXTO IZQUIERDA)
+            // 1. DIBUJAR FONDO Y ESCALA PRIMERO
             drawScaleHUD();
 
+            // 2. LUEGO DIBUJAR BARRAS (Para que queden encima)
             let now = song.currentTime();
             for (let i = bars.length - 1; i >= 0; i--) {
                 let b = bars[i];
                 let x = width/2 + (b.time - now) * 400;
 
-                if (x > 80 && x < width + 200) { // Empezamos en 80 para no tapar las letras
+                if (x > 80 && x < width + 200) {
                     strokeWeight(12);
                     stroke(b.hit ? "#00ff96" : "rgba(255, 0, 255, 0.7)");
                     line(x, b.y, x + 40, b.y);
@@ -130,6 +131,7 @@
                 }
             }
 
+            // 3. INDICADOR DE VOZ AL FINAL (Encima de todo)
             if (freqUser > 0) {
                 let y = freqToY(freqUser);
                 fill(0, 242, 255, 150); noStroke(); ellipse(width/2, y, 40, 40);
@@ -137,6 +139,7 @@
                 let midi = Math.round(12 * (Math.log(freqUser/440)/Math.log(2)) + 69);
                 document.getElementById('noteName').innerText = noteList[midi % 12];
             } else { document.getElementById('noteName').innerText = "--"; }
+            
             updateUI();
         }
 
@@ -147,26 +150,20 @@
                 let f = 440 * Math.pow(2, (i - 69) / 12);
                 let y = freqToY(f);
                 if (y > 0 && y < height) {
-                    // Línea horizontal tenue
                     stroke(255, 15);
                     line(80, y, width, y);
-                    
-                    // Nombre de la nota
                     noStroke();
                     let noteName = noteList[i % 12];
                     let octave = Math.floor(i / 12) - 1;
-                    
-                    // Resaltar notas naturales (C, D, E...)
                     if (noteName.length === 1) {
                         fill(0, 242, 255, 200);
                         text(noteName + octave, 25, y);
                     } else {
-                        fill(255, 50); // Notas sostenidas más oscuras
+                        fill(255, 50);
                         text(noteName + octave, 25, y);
                     }
                 }
             }
-            // Línea vertical divisoria
             stroke(0, 242, 255, 40);
             line(80, 0, 80, height);
         }
@@ -203,6 +200,7 @@
             song.jump(((e.clientX - rect.left) / rect.width) * song.duration());
         }
         function freqToY(f) { return f <= 80 ? -100 : map(log(f), log(80), log(1100), height - 160, 50); }
+        function windowResized() { resizeCanvas(windowWidth, windowHeight); }
     </script>
 </body>
 </html>
