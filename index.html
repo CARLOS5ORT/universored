@@ -2,42 +2,62 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master - Pro Control</title>
+    <title>Voice Master Pro - Ultra Stable Version</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
     <style>
         body { margin: 0; background: #050508; color: #00f2ff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #setup-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,40,0.95); padding: 40px; border: 2px solid #00f2ff; border-radius: 20px; text-align: center; z-index: 100; box-shadow: 0 0 50px rgba(0,242,255,0.2); backdrop-filter: blur(10px); }
-        .hidden { display: none !important; }
         
-        /* Controles de reproducción */
-        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 50px; border: 1px solid #ff00ff; z-index: 10; }
-        .btn-ctrl { background: transparent; border: 1px solid #00f2ff; color: #00f2ff; padding: 10px 20px; cursor: pointer; border-radius: 25px; font-weight: bold; transition: 0.3s; }
-        .btn-ctrl:hover { background: #00f2ff; color: #000; }
+        /* Panel Inicial */
+        #setup-panel { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: rgba(20,20,40,0.95); padding: 40px; border: 2px solid #00f2ff; 
+            border-radius: 20px; text-align: center; z-index: 100; 
+            box-shadow: 0 0 50px rgba(0,242,255,0.2); backdrop-filter: blur(10px); 
+        }
+
+        /* Controles Inferiores */
+        #controls { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
+            display: flex; gap: 15px; background: rgba(0,0,0,0.85); padding: 15px; 
+            border-radius: 50px; border: 1px solid #ff00ff; z-index: 10; 
+        }
+
+        .btn-ctrl { 
+            background: transparent; border: 1px solid #00f2ff; color: #00f2ff; 
+            padding: 10px 25px; cursor: pointer; border-radius: 25px; 
+            font-weight: bold; transition: 0.3s; text-transform: uppercase;
+        }
+
+        .btn-ctrl:hover { background: #00f2ff; color: #000; box-shadow: 0 0 10px #00f2ff; }
         
         #hud { position: absolute; top: 20px; right: 20px; text-align: right; pointer-events: none; }
-        #status { color: #ff00ff; margin-top: 15px; }
+        .hidden { display: none !important; }
+        #status { color: #ff00ff; margin-top: 20px; font-weight: bold; }
+        input[type="file"] { margin: 20px 0; color: #00f2ff; }
     </style>
 </head>
 <body>
 
     <div id="setup-panel">
-        <h1>AFINADOR VISUAL 3.0</h1>
-        <input type="file" id="audioFile" accept="audio/*"><br><br>
-        <button onclick="iniciarTodo()" style="padding:15px 30px; background:#00f2ff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">INICIAR ENTRENAMIENTO</button>
-        <div id="status">Sube un MP3 para comenzar</div>
+        <h1 style="margin-top:0">VOICE MASTER PRO</h1>
+        <p>1. Carga tu MP3 de práctica:</p>
+        <input type="file" id="audioFile" accept="audio/*">
+        <br>
+        <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff; color:black">INICIAR SISTEMA</button>
+        <div id="status">Esperando archivo...</div>
     </div>
 
     <div id="controls" class="hidden">
         <button class="btn-ctrl" onclick="saltar(-10)">-10s</button>
-        <button class="btn-ctrl" id="playPauseBtn" onclick="togglePlay()">PAUSE</button>
+        <button class="btn-ctrl" id="playPauseBtn" onclick="togglePlay()">PAUSA</button>
         <button class="btn-ctrl" onclick="saltar(10)">+10s</button>
     </div>
 
     <div id="hud" class="hidden">
-        <div style="font-size: 50px; font-weight: bold; color: #ff00ff;" id="noteName">--</div>
-        <div id="scoreDisplay">PUNTOS: 0</div>
+        <div style="font-size: 60px; font-weight: bold; color: #ff00ff;" id="noteName">--</div>
+        <div id="scoreDisplay" style="font-size: 20px;">PUNTOS: 0</div>
     </div>
 
     <script>
@@ -55,145 +75,159 @@
 
         function generarNotas() {
             dots = [];
-            for (let i = 0; i < 600; i++) {
-                dots.push({ x: width + (i * 250), y: random(100, height - 100), hit: false });
+            for (let i = 0; i < 800; i++) {
+                dots.push({ x: width + (i * 250), y: random(100, height - 120), hit: false });
             }
         }
 
         async function iniciarTodo() {
-            audioCtx = getAudioContext();
-            await audioCtx.resume();
+            // Inicializar contexto de audio nativo
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
             
             const fileInput = document.getElementById('audioFile');
-            if (!fileInput.files[0]) { alert("Primero selecciona un archivo MP3"); return; }
+            if (!fileInput.files[0]) { alert("Sube un MP3 para empezar."); return; }
             
-            document.getElementById('status').innerText = "CONFIGURANDO AUDIO...";
-            const url = URL.createObjectURL(fileInput.files[0]);
+            const status = document.getElementById('status');
+            status.innerText = "ACCEDIENDO AL MICRÓFONO...";
             
-            song = loadSound(url, async () => {
-                document.getElementById('status').innerText = "ACTIVANDO MICRÓFONO...";
-                mic = new p5.AudioIn();
-                await mic.start();
+            try {
+                // Solicitar micrófono directamente al navegador
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                if (mic.stream) {
-                    cargarIA();
-                } else {
-                    alert("No se pudo acceder al micrófono.");
-                }
+                status.innerText = "CARGANDO AUDIO...";
+                const url = URL.createObjectURL(fileInput.files[0]);
+                
+                song = loadSound(url, () => {
+                    status.innerText = "CONECTANDO IA (ESPERA 5s)...";
+                    
+                    // Pequeña espera para estabilizar el stream antes de la IA
+                    setTimeout(() => {
+                        const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
+                        
+                        pitch = ml5.pitchDetection(modelURL, audioCtx, stream, () => {
+                            document.getElementById('setup-panel').classList.add('hidden');
+                            document.getElementById('controls').classList.remove('hidden');
+                            document.getElementById('hud').classList.remove('hidden');
+                            song.play();
+                            isReady = true;
+                            listenPitch();
+                        });
+                    }, 1000);
+                });
+            } catch (e) {
+                status.innerText = "ERROR DE MICRO: " + e.message;
+                console.error(e);
+            }
+        }
+
+        function listenPitch() {
+            if (!isReady) return;
+            pitch.getPitch((err, f) => {
+                if (f) freq = f;
+                listenPitch();
             });
         }
 
-        function cargarIA() {
-            const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
-            pitch = ml5.pitchDetection(modelURL, audioCtx, mic.stream, () => {
-                document.getElementById('setup-panel').classList.add('hidden');
-                document.getElementById('controls').classList.remove('hidden');
-                document.getElementById('hud').classList.remove('hidden');
-                song.play();
-                isReady = true;
-                listen();
-            });
-        }
-
-        // LÓGICA DE CONTROL
+        // --- CONTROLES DE REPRODUCCIÓN ---
         function togglePlay() {
             if (song.isPlaying()) {
                 song.pause();
                 document.getElementById('playPauseBtn').innerText = "PLAY";
             } else {
                 song.play();
-                document.getElementById('playPauseBtn').innerText = "PAUSE";
+                document.getElementById('playPauseBtn').innerText = "PAUSA";
             }
         }
 
         function saltar(segundos) {
-            let tiempoActual = song.currentTime();
-            let nuevoTiempo = tiempoActual + segundos;
-            // Evitar que el tiempo sea menor a 0 o mayor a la duración
-            nuevoTiempo = constrain(nuevoTiempo, 0, song.duration());
-            song.jump(nuevoTiempo);
-        }
-
-        function listen() {
-            if (!isReady) return;
-            pitch.getPitch((err, f) => {
-                if (f) freq = f;
-                listen();
-            });
+            if (!song) return;
+            let target = song.currentTime() + segundos;
+            target = constrain(target, 0, song.duration());
+            song.jump(target);
         }
 
         function draw() {
             background(5, 5, 15);
             if (!isReady) return;
 
-            // Dibujar escala de notas
             drawNoteScale();
 
-            // Sincronizar movimiento de las notas con el tiempo de la canción
-            let timeShift = song.currentTime() * 100; // Ajuste de velocidad visual
+            // Desplazamiento basado en el tiempo de la canción
+            let timeShift = song.currentTime() * 120; 
 
             for (let d of dots) {
-                // Las notas se mueven basadas en el tiempo real de la canción
                 let currentX = d.x - timeShift;
                 
+                // Solo dibujar lo que está en pantalla
                 if (currentX > -200 && currentX < width + 200) {
-                    strokeWeight(8);
-                    if (d.hit) stroke(0, 255, 150); else stroke(255, 0, 255, 100);
-                    line(currentX, d.y, currentX + 150, d.y);
+                    strokeWeight(10);
+                    if (d.hit) stroke(0, 255, 150); else stroke(255, 0, 255, 80);
+                    line(currentX, d.y, currentX + 180, d.y);
 
-                    // Colisión
-                    if (currentX < width/2 && currentX > width/2 - 150) {
+                    // Colisión con la voz (línea central)
+                    if (currentX < width/2 && currentX > width/2 - 180) {
                         let userY = freqToY(freq);
-                        if (freq > 0 && Math.abs(userY - d.y) < 35) {
+                        if (freq > 0 && Math.abs(userY - d.y) < 40) {
                             if (!d.hit) { d.hit = true; score += 10; }
                         }
                     }
                 }
             }
 
-            // Indicador de Voz
+            // Indicador de Voz (Punto de afinación)
             if (freq > 0) {
                 let y = freqToY(freq);
-                fill(255); noStroke();
+                // Brillo
+                noStroke();
+                fill(0, 242, 255, 50);
+                ellipse(width/2, y, 50, 50);
+                // Centro
+                fill(255);
                 ellipse(width/2, y, 20, 20);
-                fill(0, 255, 255, 100);
-                ellipse(width/2, y, 40, 40);
                 
-                let midi = Math.round(12 * (Math.log(freq / 440) / Math.log(2)) + 69);
-                document.getElementById('noteName').innerText = noteList[midi % 12];
+                actualizarNotaHUD(freq);
             }
-            document.getElementById('scoreDisplay').innerText = "PUNTOS: " + score;
             
-            // Barra de progreso de la canción (abajo)
-            drawProgressBar();
+            // Barra de progreso inferior
+            drawProgress();
         }
 
         function drawNoteScale() {
             textAlign(LEFT, CENTER);
-            textSize(12);
+            textSize(11);
             for (let i = 36; i < 84; i++) {
                 let f = 440 * Math.pow(2, (i - 69) / 12);
                 let y = freqToY(f);
                 if (y > 0 && y < height) {
-                    stroke(255, 15);
-                    line(60, y, width, y);
+                    stroke(255, 10);
+                    line(65, y, width, y);
                     noStroke();
                     fill(i % 12 === 0 ? '#00f2ff' : 100);
-                    text(noteList[i % 12] + Math.floor(i/12-1), 20, y);
+                    text(noteList[i % 12] + Math.floor(i/12-1), 25, y);
                 }
             }
+            stroke(0, 242, 255, 40);
+            line(65, 0, 65, height);
         }
 
-        function drawProgressBar() {
-            let w = map(song.currentTime(), 0, song.duration(), 0, width);
+        function drawProgress() {
+            let prg = map(song.currentTime(), 0, song.duration(), 0, width);
             stroke('#ff00ff');
-            strokeWeight(4);
-            line(0, height - 2, w, height - 2);
+            strokeWeight(5);
+            line(0, height - 3, prg, height - 3);
+        }
+
+        function actualizarNotaHUD(f) {
+            let midi = Math.round(12 * (Math.log(f / 440) / Math.log(2)) + 69);
+            document.getElementById('noteName').innerText = noteList[midi % 12];
+            document.getElementById('scoreDisplay').innerText = "PUNTOS: " + score;
         }
 
         function freqToY(f) {
             if (f <= 0) return -100;
-            return map(log(f), log(80), log(1000), height - 80, 50);
+            // Escala logarítmica para representar notas musicales correctamente
+            return map(log(f), log(80), log(1100), height - 100, 50);
         }
 
         function windowResized() { resizeCanvas(windowWidth, windowHeight); }
