@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro - Fix Carga</title>
+    <title>Voice Master Pro - Fix Carga Total</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
@@ -26,9 +26,9 @@
 
     <div id="setup-panel">
         <h1 style="margin:0">VOICE MASTER</h1>
-        <p>Cargador Inteligente</p>
+        <p>Análisis en Tiempo Real</p>
         <input type="file" id="audioFile" accept="audio/*"><br>
-        <button class="btn-ctrl" onclick="prepararNuevaCarga()" style="background:#00f2ff; color:black">ENTRENAR</button>
+        <button class="btn-ctrl" onclick="prepararNuevaCarga()" style="background:#00f2ff; color:black">CARGAR CANCIÓN</button>
         <div id="status">Selecciona MP3</div>
     </div>
 
@@ -63,12 +63,10 @@
         }
 
         async function prepararNuevaCarga() {
-            // Detener cualquier proceso anterior antes de iniciar uno nuevo
             isReady = false;
             if (song) song.stop();
             bars = [];
             score = 0;
-            
             iniciarTodo();
         }
 
@@ -77,27 +75,31 @@
             if (audioCtx.state === 'suspended') await audioCtx.resume();
             
             const fileInput = document.getElementById('audioFile');
-            if (!fileInput.files[0]) {
-                alert("Selecciona un archivo primero");
-                return;
-            }
+            if (!fileInput.files[0]) return;
             
-            document.getElementById('status').innerText = "ESCANER IA ACTIVADO...";
+            const status = document.getElementById('status');
+            status.innerText = "SINCRO IA...";
             const url = URL.createObjectURL(fileInput.files[0]);
 
             song = loadSound(url, () => {
                 const modelURL = 'https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/';
                 
-                // Inicialización encadenada para evitar errores de referencia
+                // Cargamos IA de Usuario
                 pitchUser = ml5.pitchDetection(modelURL, audioCtx, null, () => {
+                    // Cargamos IA de Canción
                     pitchSong = ml5.pitchDetection(modelURL, audioCtx, song.bufferSource, () => {
-                        iniciarMicro();
+                        entrarAlJuego();
                     });
                 });
+
+                // SEGURO DE CARGA: Si a los 4 segundos no ha entrado, forzamos la entrada
+                setTimeout(() => { if(!isReady) entrarAlJuego(); }, 4000);
             });
         }
 
-        async function iniciarMicro() {
+        async function entrarAlJuego() {
+            if(isReady) return; // Si ya entró, no hacer nada
+            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 pitchUser.stream = stream; 
@@ -110,7 +112,7 @@
                 isReady = true;
                 detectar();
             } catch (err) {
-                alert("Error al acceder al micrófono: " + err);
+                console.log("Esperando micro...");
             }
         }
 
@@ -119,19 +121,11 @@
             
             pitchUser.getPitch((errU, fU) => {
                 freqUser = fU || 0;
-                
                 pitchSong.getPitch((errS, fS) => {
                     freqSong = fS || 0;
-                    
                     if (song.isPlaying() && freqSong > 80) {
-                        bars.push({
-                            x: width, 
-                            y: freqToY(freqSong),
-                            time: song.currentTime(),
-                            hit: false
-                        });
+                        bars.push({ x: width, y: freqToY(freqSong), time: song.currentTime(), hit: false });
                     }
-                    
                     if (bars.length > 500) bars.shift();
                     detectar();
                 });
@@ -139,16 +133,10 @@
         }
 
         function detenerSistema() {
-            if (song) { 
-                song.stop(); 
-                bars = []; 
-                score = 0; 
-                freqUser = 0; 
-            }
+            if (song) { song.stop(); bars = []; score = 0; freqUser = 0; }
             document.getElementById('playPauseBtn').innerText = "PLAY";
             document.getElementById('progress-bar').style.width = "0%";
             document.getElementById('scoreDisplay').innerText = "PUNTOS: 0";
-            document.getElementById('noteName').innerText = "--";
         }
 
         function cambiarCancion() {
@@ -166,10 +154,9 @@
 
             drawScale();
 
-            // Dibujar Barras Magenta (Notas Reales del MP3)
+            let timeShift = song.currentTime() * 130; 
             for (let i = bars.length - 1; i >= 0; i--) {
                 let b = bars[i];
-                // El tiempo actual de la canción dicta dónde están las barras en X
                 let x = width/2 + (b.time - song.currentTime()) * 400; 
 
                 if (x > -200 && x < width + 200) {
@@ -177,7 +164,6 @@
                     stroke(b.hit ? "#00ff96" : "rgba(255, 0, 255, 0.7)");
                     line(x, b.y, x + 35, b.y);
 
-                    // Colisión mejorada
                     if (Math.abs(x - width/2) < 25) {
                         let userY = freqToY(freqUser);
                         if (freqUser > 0 && Math.abs(userY - b.y) < 35) {
@@ -187,18 +173,13 @@
                 }
             }
 
-            // Indicador de Voz (Usuario)
             if (freqUser > 0) {
                 let y = freqToY(freqUser);
                 fill(0, 242, 255, 100); noStroke(); ellipse(width/2, y, 40, 40);
                 fill(255); ellipse(width/2, y, 15, 15);
-                
                 let midi = Math.round(12 * (Math.log(freqUser/440)/Math.log(2)) + 69);
                 document.getElementById('noteName').innerText = noteList[midi % 12];
-            } else { 
-                document.getElementById('noteName').innerText = "--"; 
-            }
-
+            } else { document.getElementById('noteName').innerText = "--"; }
             updateUI();
         }
 
