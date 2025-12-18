@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro - Restauración Original</title>
+    <title>Voice Master Pro - Versión Estable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
@@ -24,7 +24,7 @@
 <body>
 
     <div id="setup-panel">
-        <h1 style="margin:0; font-size: 24px;">VOICE MASTER</h1>
+        <h1 style="margin:0">VOICE MASTER</h1>
         <p>Entrenamiento Vocal</p>
         <input type="file" id="audioFile" accept="audio/*"><br><br>
         <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff; color:black">CARGAR CANCIÓN</button>
@@ -57,16 +57,15 @@
 
         function setup() {
             createCanvas(windowWidth, windowHeight);
-            generarBarrasFijas(); // Esto crea las barras magenta que sí se ven
+            generarBarras(); 
         }
 
-        // Esta función crea las barras magenta rectangulares que NO fallan
-        function generarBarrasFijas() {
+        function generarBarras() {
             bars = [];
-            for (let i = 0; i < 1500; i++) {
+            for (let i = 0; i < 2000; i++) {
                 bars.push({
-                    x: 800 + (i * 280), // Espaciado entre barras
-                    y: random(100, height - 200),
+                    x: 800 + (i * 350), 
+                    y: random(150, height - 250),
                     hit: false
                 });
             }
@@ -109,31 +108,26 @@
             background(5, 5, 15);
             if (!isReady) return;
 
-            // 1. DIBUJAR LA PARRILLA DE NOTAS (TEXTO IZQUIERDA)
-            drawNoteGrid();
-
-            // 2. DIBUJAR LAS BARRAS MAGENTA (Las rectangulares que fluyen)
-            let timeShift = song.currentTime() * 140; // Velocidad de las barras
+            // DIBUJAR BARRAS MAGENTA RECTANGULARES
+            let timeShift = song.currentTime() * 160; 
             for (let b of bars) {
                 let currentX = b.x - timeShift;
-                
-                // Solo dibujamos si están en pantalla
-                if (currentX > 80 && currentX < width + 200) {
+                if (currentX > -200 && currentX < width + 200) {
                     strokeWeight(12);
                     stroke(b.hit ? "#00ff96" : "rgba(255, 0, 255, 0.7)");
-                    line(currentX, b.y, currentX + 180, b.y); // Barras largas rectangulares
+                    line(currentX, b.y, currentX + 200, b.y);
 
-                    // Colisión en el centro
-                    if (currentX < width/2 && currentX > width/2 - 180) {
+                    // Colisión
+                    if (currentX < width/2 && currentX > width/2 - 200) {
                         let userY = freqToY(freqUser);
-                        if (freqUser > 0 && Math.abs(userY - b.y) < 40) {
+                        if (freqUser > 0 && Math.abs(userY - b.y) < 45) {
                             if (!b.hit) { b.hit = true; score += 10; }
                         }
                     }
                 }
             }
 
-            // 3. INDICADOR DE VOZ (PUNTO CIAN)
+            // INDICADOR DE VOZ CIAN
             if (freqUser > 0) {
                 let y = freqToY(freqUser);
                 fill(0, 242, 255, 150); noStroke(); ellipse(width/2, y, 40, 40);
@@ -142,27 +136,12 @@
                 document.getElementById('noteName').innerText = noteList[midi % 12] || "--";
             } else { document.getElementById('noteName').innerText = "--"; }
             
-            updateUI();
+            actualizarInterfaz();
         }
 
-        function drawNoteGrid() {
-            textAlign(LEFT, CENTER); textSize(12);
-            for (let i = 36; i < 84; i++) {
-                let f = 440 * Math.pow(2, (i - 69) / 12);
-                let y = freqToY(f);
-                if (y > 0 && y < height) {
-                    stroke(255, 12); line(80, y, width, y);
-                    noStroke();
-                    let n = noteList[i % 12];
-                    if (n.length === 1) { fill(0, 242, 255, 180); text(n + (Math.floor(i/12)-1), 25, y); }
-                    else { fill(255, 30); text(n + (Math.floor(i/12)-1), 25, y); }
-                }
-            }
-            stroke(0, 242, 255, 30); line(80, 0, 80, height);
-        }
-
-        function updateUI() {
-            let cur = song.currentTime(); let dur = song.duration();
+        function actualizarInterfaz() {
+            let cur = song.currentTime(); 
+            let dur = song.duration();
             document.getElementById('progress-bar').style.width = (cur/dur*100) + "%";
             document.getElementById('time-info').innerText = floor(cur) + "s / " + floor(dur) + "s";
             document.getElementById('scoreDisplay').innerText = "PUNTOS: " + score;
@@ -196,7 +175,6 @@
             song.jump(((e.clientX - rect.left) / rect.width) * song.duration());
         }
         function freqToY(f) { return f <= 80 ? -100 : map(log(f), log(80), log(1100), height - 160, 50); }
-        function windowResized() { resizeCanvas(windowWidth, windowHeight); }
     </script>
 </body>
 </html>
