@@ -16,6 +16,8 @@ body {
     font-family: 'Segoe UI', sans-serif;
     overflow: hidden;
 }
+.hidden { display:none; }
+
 #setup-panel {
     position: absolute;
     top: 50%;
@@ -27,8 +29,9 @@ body {
     border-radius: 20px;
     text-align: center;
     z-index: 100;
-    width: 320px;
+    width: 340px;
 }
+
 #footer-controls {
     position: absolute;
     bottom: 0;
@@ -37,7 +40,7 @@ body {
     border-top: 1px solid #333;
     padding: 10px 0 25px 0;
 }
-.hidden { display: none; }
+
 #progress-container {
     width: 90%;
     height: 12px;
@@ -51,11 +54,13 @@ body {
     height: 100%;
     background: #00f2ff;
 }
+
 #controls-row {
     display: flex;
     justify-content: center;
     gap: 12px;
 }
+
 .btn-ctrl {
     background: transparent;
     border: 1px solid #00f2ff;
@@ -65,24 +70,29 @@ body {
     font-size: 11px;
     cursor: pointer;
 }
-.btn-ctrl:hover { background: #00f2ff; color: #000; }
-.btn-stop { border-color: #ff4444; color: #ff4444; }
-.btn-change { border-color: #ffaa00; color: #ffaa00; }
+.btn-ctrl:hover { background:#00f2ff; color:#000; }
+.btn-stop { border-color:#ff4444; color:#ff4444; }
+.btn-change { border-color:#ffaa00; color:#ffaa00; }
+
 #hud {
     position: absolute;
     top: 20px;
     right: 20px;
     text-align: right;
 }
-#lyricsEditor {
-    position:absolute;
-    top:20px;
-    left:20px;
-    width:320px;
-    height:240px;
-    display:none;
-    background:#000;
-    color:#0ff;
+
+#lyrics-panel {
+    position: absolute;
+    left: 20px;
+    bottom: 120px;
+    width: 320px;
+    max-height: 50%;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid #00f2ff;
+    border-radius: 12px;
+    padding: 12px;
+    overflow-y: auto;
+    font-size: 13px;
 }
 </style>
 </head>
@@ -92,8 +102,13 @@ body {
 <div id="setup-panel">
     <h1>VOICE MASTER</h1>
     <p>Análisis de tono en tiempo real</p>
+
     <input type="file" id="audioFile" accept="audio/*"><br><br>
-    <input type="file" id="lrcFile" accept=".lrc"><br><br>
+
+    <textarea id="lyricsInput" placeholder="Pega aquí la letra..."
+    style="width:100%;height:120px;background:#000;color:#00f2ff;border:1px solid #00f2ff;border-radius:8px;padding:6px;"></textarea>
+    <br><br>
+
     <button class="btn-ctrl" onclick="iniciarTodo()" style="background:#00f2ff;color:#000">
         CARGAR Y ANALIZAR
     </button>
@@ -115,24 +130,29 @@ body {
 
 <div id="hud" class="hidden">
     <div id="note" style="font-size:60px;color:#ff00ff">--</div>
-    <div id="score">AFINACIÓN</div>
+    <div id="score">PUNTOS: 0</div>
 </div>
-
-<textarea id="lyricsEditor"></textarea>
 
 <script>
 let song, mic, pitchUser, fftSong;
 let bars = [];
-let voiceTrail = [];
 let freqUser = 0;
 let ready = false;
 
-const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+let words = [];
+let currentWord = 0;
+let lastVoiceTime = 0;
 
-let lyrics = [];
+const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
+    textAlign(CENTER, BOTTOM);
+}
+
+function cargarPalabras(){
+    const text = document.getElementById("lyricsInput").value;
+    words = text.replace(/\n/g," ").split(" ").filter(w=>w.trim()!=="");
 }
 
 async function iniciarTodo() {
@@ -142,6 +162,8 @@ async function iniciarTodo() {
     document.getElementById('setup-panel').classList.add('hidden');
     document.getElementById('footer-controls').classList.remove('hidden');
     document.getElementById('hud').classList.remove('hidden');
+
+    cargarPalabras();
 
     await getAudioContext().resume();
 
@@ -165,85 +187,34 @@ function draw() {
     background(5,5,15);
     if (!ready) return;
 
-    drawGrid();
-
-    let now = song.currentTime();
-    let fSong = detectPitchSong();
-    let lyric = getActiveLyric(now);
-
-    if (fSong && fSong > 80 && fSong < 1100) {
-        if (bars.length === 0 || now - bars[bars.length-1].time > 0.15) {
-            bars.push({ y: freqToY(fSong), time: now });
-        }
-    }
-
     pitchUser.getPitch((e,f)=> freqUser = f || 0);
 
-    for (let b of bars) {
-        let x = width/2 + (b.time - now) * 250;
-        if (x < 80 || x > width) continue;
-
-        strokeWeight(10);
-        stroke("#ff00ff");
-        line(x, b.y, x+45, b.y);
-
-        if (lyric && Math.abs(b.time - lyric.time) < 0.2) {
-            drawLyrics(lyric, now, x, b.y - 30, fSong);
+    if(freqUser > 80){
+        if(millis() - lastVoiceTime > 450){
+            currentWord = min(currentWord + 1, words.length - 1);
+            lastVoiceTime = millis();
         }
     }
 
-    if (freqUser > 0) {
-        let y = freqToY(freqUser);
-        voiceTrail.push({ y, time: now });
+    if(freqUser > 0){
+        let y = map(Math.log(freqUser), Math.log(80), Math.log(1100), height-160, 50);
 
-        let midi = Math.round(12 * Math.log2(freqUser / 440) + 69);
-        document.getElementById('note').innerText =
-            notes[midi % 12] + (Math.floor(midi / 12) - 1);
+        stroke(0,242,255);
+        strokeWeight(10);
+        line(width/2, y, width/2, y-80);
+
+        noStroke();
+        fill(255);
+        textSize(22);
+        text(words[currentWord] || "", width/2, y-90);
+
+        let midi = round(12*Math.log(freqUser/440)/Math.log(2)+69);
+        document.getElementById('note').innerText = notes[midi%12];
     } else {
-        document.getElementById('note').innerText = "--";
+        document.getElementById('note').innerText="--";
     }
 
-    drawVoiceTrail(now);
     updateUI();
-}
-
-function drawVoiceTrail(now) {
-    stroke("#00ff96");
-    strokeWeight(7);
-    noFill();
-    beginShape();
-    for (let v of voiceTrail) {
-        let x = width/2 + (v.time - now) * 250;
-        if (x < 80 || x > width) continue;
-        vertex(x, v.y);
-    }
-    endShape();
-    voiceTrail = voiceTrail.filter(v => now - v.time < 3);
-}
-
-function detectPitchSong() {
-    let w = fftSong.waveform();
-    let best = -1, bestCorr = 0;
-    for (let o=20;o<1000;o++) {
-        let c=0;
-        for (let i=0;i<w.length-o;i++) c+=w[i]*w[i+o];
-        if (c>bestCorr) { bestCorr=c; best=o; }
-    }
-    return best>0 ? getAudioContext().sampleRate/best : null;
-}
-
-function drawGrid() {
-    for (let i=36;i<84;i++) {
-        let f=440*Math.pow(2,(i-69)/12);
-        let y=freqToY(f);
-        stroke(255,10); line(80,y,width,y);
-        noStroke(); fill(0,242,255,120);
-        text(notes[i%12]+(floor(i/12)-1),25,y);
-    }
-}
-
-function freqToY(f) {
-    return map(Math.log(f), Math.log(80), Math.log(1100), height-160, 50);
 }
 
 function updateUI() {
@@ -262,12 +233,11 @@ function saltar(s) {
 }
 
 function detener() {
-    song.stop();
-    bars=[];
-    voiceTrail=[];
+    song.stop(); currentWord=0;
 }
 
 function cambiarCancion() {
+    detener();
     location.reload();
 }
 
@@ -279,54 +249,7 @@ function clickBarra(e) {
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
-
-function getActiveLyric(now) {
-    for (let i = lyrics.length - 1; i >= 0; i--) {
-        if (now >= lyrics[i].time) return lyrics[i];
-    }
-    return null;
-}
-
-function drawLyrics(lyric, now, x, y, fSong) {
-    textSize(18);
-    noStroke();
-    let offset = 0;
-    for (let w of lyric.words) {
-        let col = "#888";
-        if (now >= w.t) {
-            let cents = freqUser && fSong ? 1200*Math.log2(freqUser/fSong) : 0;
-            col = Math.abs(cents)<30 ? "#00ff96" : (cents>0?"#4488ff":"#ff4444");
-        }
-        fill(col);
-        text(w.text, x + offset, y);
-        offset += textWidth(w.text + " ");
-    }
-}
-
-document.getElementById("lrcFile").addEventListener("change", e => {
-    let r = new FileReader();
-    r.onload = () => parseLRC(r.result);
-    r.readAsText(e.target.files[0]);
-});
-
-function parseLRC(text) {
-    lyrics=[];
-    for (let line of text.split("\n")) {
-        let m=line.match(/\[(\d+):(\d+\.?\d*)\](.*)/);
-        if(!m)continue;
-        let t=+m[1]*60+parseFloat(m[2]);
-        let words=m[3].trim().split(" ").map((w,i)=>({t:t+i*0.25,text:w}));
-        lyrics.push({time:t,words});
-    }
-}
-
-function keyPressed() {
-    if (key === 'L') {
-        let ed=document.getElementById("lyricsEditor");
-        ed.style.display=ed.style.display==="none"?"block":"none";
-        ed.value=JSON.stringify(lyrics,null,2);
-    }
-}
 </script>
+
 </body>
 </html>
