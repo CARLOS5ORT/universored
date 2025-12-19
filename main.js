@@ -79,23 +79,34 @@ function draw() {
     // Voz del usuario
     pitchUser.getPitch((e,f)=> freqUser = f || 0);
     if (freqUser > 0) {
-        voiceTrail.push({ y: freqToY(freqUser), time: now });
+        voiceTrail.push({ y: freqToY(freqUser), freq: freqUser, time: now });
     }
 
-    // Estela de la voz (guía de tonalidad)
+    // Estela de la voz (guía de tonalidad) con degradado suave
     strokeWeight(8);
     for (let i = 1; i < voiceTrail.length; i++) {
+        const pointPrev = voiceTrail[i - 1];
+        const pointCurr = voiceTrail[i];
 
-        let noteName = freqToNoteName(freqUser);
-        let inKey = keyDetected ? noteInKey(noteName, songKey) : true;
+        const noteNamePrev = freqToNoteName(pointPrev.freq);
+        const noteNameCurr = freqToNoteName(pointCurr.freq);
 
-        stroke(inKey ? color(0,242,255,180) : color(255,60,60,180));
+        const inKeyPrev = keyDetected ? noteInKey(noteNamePrev, songKey) : true;
+        const inKeyCurr = keyDetected ? noteInKey(noteNameCurr, songKey) : true;
 
-        let x1 = width/2 + (voiceTrail[i-1].time - now) * 300;
-        let x2 = width/2 + (voiceTrail[i].time - now) * 300;
-        if (x1 < 80 || x2 > width) continue;
+        const cPrev = inKeyPrev ? color(0,242,255,180) : color(255,60,60,180);
+        const cCurr = inKeyCurr ? color(0,242,255,180) : color(255,60,60,180);
 
-        line(x1, voiceTrail[i-1].y, x2, voiceTrail[i].y);
+        const steps = 20; // más pasos = más suave
+        for (let t = 0; t < 1; t += 1/steps) {
+            const x1 = lerp(width/2 + (pointPrev.time - now) * 300, width/2 + (pointCurr.time - now) * 300, t);
+            const y1 = lerp(pointPrev.y, pointCurr.y, t);
+            const x2 = lerp(width/2 + (pointPrev.time - now) * 300, width/2 + (pointCurr.time - now) * 300, t + 1/steps);
+            const y2 = lerp(pointPrev.y, pointCurr.y, t + 1/steps);
+            const c = lerpColor(cPrev, cCurr, t);
+            stroke(c);
+            line(x1, y1, x2, y2);
+        }
     }
 
     // Barras magenta de la canción
@@ -150,12 +161,10 @@ function detectSongKey() {
     songKey = key;
     keyDetected = true;
 
-    // Mostrar tonalidad fija
     const panel = document.getElementById("key-panel");
     panel.innerText = "TONALIDAD: " + songKey + " MAYOR";
     panel.classList.remove("hidden");
 }
-
 
 function detectPitchSong() {
     let w = fftSong.waveform();
