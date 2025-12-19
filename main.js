@@ -139,15 +139,23 @@ function noteInKey(note, key) {
 function detectSongKey() {
     let max = 0;
     let key = "--";
+
     for (let n in songNotesCount) {
         if (songNotesCount[n] > max) {
             max = songNotesCount[n];
             key = n;
         }
     }
+
     songKey = key;
     keyDetected = true;
+
+    // Mostrar tonalidad fija
+    const panel = document.getElementById("key-panel");
+    panel.innerText = "TONALIDAD: " + songKey + " MAYOR";
+    panel.classList.remove("hidden");
 }
+
 
 function detectPitchSong() {
     let w = fftSong.waveform();
