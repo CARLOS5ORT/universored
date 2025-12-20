@@ -1,5 +1,6 @@
 // ================= CONFIG =================
 const TIME_SCALE = 180;
+const SONG_PITCH_INTERVAL = 6; // calcular pitch canción cada 6 frames
 
 // ================= AUDIO =================
 let song, mic, pitchUser, fftSong;
@@ -7,6 +8,12 @@ let bars = [];
 let voiceTrail = [];
 let freqUser = 0;
 let ready = false;
+
+// ================= TONALIDAD =================
+let songNotesCount = {};
+let songKey = "--";
+let keyDetected = false;
+let lastSongPitch = null;
 
 // ================= NOTAS =================
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -61,19 +68,23 @@ function draw() {
 
     const now = song.currentTime();
 
-    // ================= PITCH CANCIÓN =================
-    const fSong = detectPitchSong();
+    // ================= PITCH CANCIÓN (CONTROLADO) =================
+    if (frameCount % SONG_PITCH_INTERVAL === 0) {
+        lastSongPitch = detectPitchSong();
+    }
+    const fSong = lastSongPitch;
+
     if (fSong && fSong > 80 && fSong < 1100) {
-        if (!bars.length || now - bars[bars.length - 1].time > 0.15) {
+        if (!bars.length || now - bars[bars.length - 1].time > 0.18) {
             bars.push({ y: freqToY(fSong), time: now });
 
-let note = freqToNoteName(fSong);
-songNotesCount[note] = (songNotesCount[note] || 0) + 1;
+            const note = freqToNoteName(fSong);
+            songNotesCount[note] = (songNotesCount[note] || 0) + 1;
 
-if (!keyDetected && now > 8) {
-    detectSongKey();
-}
-
+            if (!keyDetected && now > 8) {
+                detectSongKey();
+            }
+        }
     }
 
     // ================= PITCH VOZ =================
@@ -107,7 +118,7 @@ if (!keyDetected && now > 8) {
         line(x, b.y, x + 45, b.y);
     }
 
-    // ================= PUNTO VOZ ACTUAL =================
+    // ================= PUNTO VOZ =================
     if (freqUser > 0) {
         let y = freqToY(freqUser);
         fill(0, 242, 255, 150);
@@ -117,7 +128,8 @@ if (!keyDetected && now > 8) {
         ellipse(width / 2, y, 15);
 
         let midi = Math.round(12 * Math.log2(freqUser / 440) + 69);
-        document.getElementById("note").innerText = notes[midi % 12];
+        document.getElementById("note").innerText =
+            notes[midi % 12] + (keyDetected ? " | " + songKey + " MAYOR" : "");
     } else {
         document.getElementById("note").innerText = "--";
     }
@@ -130,7 +142,7 @@ function detectPitchSong() {
     let w = fftSong.waveform();
     let best = -1, bestCorr = 0;
 
-    for (let o = 20; o < 800; o++) {
+    for (let o = 20; o < 700; o++) {
         let c = 0;
         for (let i = 0; i < w.length - o; i++) {
             c += w[i] * w[i + o];
@@ -142,6 +154,32 @@ function detectPitchSong() {
     }
 
     return best > 0 ? getAudioContext().sampleRate / best : null;
+}
+
+function freqToNoteName(freq) {
+    let midi = Math.round(12 * Math.log2(freq / 440) + 69);
+    return notes[midi % 12];
+}
+
+function detectSongKey() {
+    let max = 0;
+    let key = "--";
+
+    for (let n in songNotesCount) {
+        if (songNotesCount[n] > max) {
+            max = songNotesCount[n];
+            key = n;
+        }
+    }
+
+    songKey = key;
+    keyDetected = true;
+
+    const panel = document.getElementById("key-panel");
+    if (panel) {
+        panel.innerText = "TONALIDAD: " + songKey + " MAYOR";
+        panel.classList.remove("hidden");
+    }
 }
 
 function freqToY(f) {
@@ -224,28 +262,3 @@ function cargarLetra() {
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
-
-    function freqToNoteName(freq) {
-    let midi = Math.round(12 * Math.log2(freq / 440) + 69);
-    return notes[midi % 12];
-}
-
-function detectSongKey() {
-    let max = 0;
-    let key = "--";
-
-    for (let n in songNotesCount) {
-        if (songNotesCount[n] > max) {
-            max = songNotesCount[n];
-            key = n;
-        }
-    }
-
-    songKey = key;
-    keyDetected = true;
-
-    const panel = document.getElementById("key-panel");
-    panel.innerText = "TONALIDAD: " + songKey + " MAYOR";
-    panel.classList.remove("hidden");
-}
-
