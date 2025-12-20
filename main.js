@@ -1,3 +1,4 @@
+const TIME_SCALE = 180; // prueba entre 150 y 220
 let song, mic, pitchUser, fftSong;
 let bars = [];
 let voiceTrail = [];
@@ -95,8 +96,8 @@ text("AHORA", width / 2, 18);
     // Estela de la voz (guía de tonalidad) con degradado suave
     strokeWeight(8);
     for (let i = 1; i < voiceTrail.length; i++) {
-        const pointPrev = voiceTrail[i - 1];
-        const pointCurr = voiceTrail[i];
+        const pointPrev = voiceTrail[i - 1].time - now) * TIME_SCALE;
+        const pointCurr = voiceTrail[i].time - now) * TIME_SCALE;
 
         const noteNamePrev = freqToNoteName(pointPrev.freq);
         const noteNameCurr = freqToNoteName(pointCurr.freq);
@@ -123,7 +124,7 @@ text("AHORA", width / 2, 18);
     stroke("#ff00ff");
     strokeWeight(12);
     for (let b of bars) {
-        let x = width/2 + (b.time - now) * 300;
+        let x = width/2 + (b.time - now) * TIME_SCALE;
         if (x < 80 || x > width) continue;
         line(x, b.y, x + 45, b.y);
     }
