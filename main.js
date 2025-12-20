@@ -23,7 +23,7 @@ async function iniciarTodo() {
     document.getElementById("setup-panel").classList.add("hidden");
     document.getElementById("footer-controls").classList.remove("hidden");
     document.getElementById("hud").classList.remove("hidden");
-    document.getElementById("youtube-panel").classList.remove("hidden");
+    
     cargarLetra();
     await getAudioContext().resume();
 
