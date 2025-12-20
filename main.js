@@ -60,6 +60,16 @@ function draw() {
     if (!ready) return;
 
     drawGrid();
+// Línea vertical de referencia (AHORA)
+stroke(255, 255, 255, 120);
+strokeWeight(2);
+line(width / 2, 0, width / 2, height);
+
+// Etiqueta opcional
+noStroke();
+fill(255, 255, 255, 160);
+textAlign(CENTER);
+text("AHORA", width / 2, 18);
 
     const now = song.currentTime();
     const fSong = detectPitchSong();
