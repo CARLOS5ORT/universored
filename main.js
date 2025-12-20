@@ -1,4 +1,5 @@
-const TIME_SCALE = 180; // prueba entre 150 y 220
+const TIME_SCALE = 180;
+
 let song, mic, pitchUser, fftSong;
 let bars = [];
 let voiceTrail = [];
@@ -10,18 +11,19 @@ let songNotesCount = {};
 let songKey = "--";
 let keyDetected = false;
 
+// control pitch canción
+let lastSongPitch = null;
+
 // Notas
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
-// Escalas mayores (guía vocal)
+// Escalas mayores
 const majorKeys = {
     "C": ["C","D","E","F","G","A","B"],
     "G": ["G","A","B","C","D","E","F#"],
     "D": ["D","E","F#","G","A","B","C#"],
     "A": ["A","B","C#","D","E","F#","G#"],
     "E": ["E","F#","G#","A","B","C#","D#"],
-    "B": ["B","C#","D#","E","F#","G#","A#"],
-    "F#": ["F#","G#","A#","B","C#","D#","F"],
     "F": ["F","G","A","A#","C","D","E"]
 };
 
@@ -41,13 +43,13 @@ async function iniciarTodo() {
     await getAudioContext().resume();
 
     song = loadSound(URL.createObjectURL(file), () => {
-        fftSong = new p5.FFT(0.9, 2048);
+        fftSong = new p5.FFT(0.9, 1024);
         fftSong.setInput(song);
 
         mic = new p5.AudioIn();
         mic.start(() => {
             const modelURL =
-            "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
+              "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
             pitchUser = ml5.pitchDetection(modelURL, getAudioContext(), mic.stream, () => {
                 ready = true;
                 song.play();
@@ -61,23 +63,28 @@ function draw() {
     if (!ready) return;
 
     drawGrid();
-// Línea vertical de referencia (AHORA)
-stroke(255, 255, 255, 120);
-strokeWeight(2);
-line(width / 2, 0, width / 2, height);
 
-// Etiqueta opcional
-noStroke();
-fill(255, 255, 255, 160);
-textAlign(CENTER);
-text("AHORA", width / 2, 18);
+    // línea vertical AHORA
+    stroke(255,255,255,120);
+    strokeWeight(2);
+    line(width/2,0,width/2,height);
+
+    noStroke();
+    fill(255,160);
+    textAlign(CENTER);
+    text("AHORA", width/2, 18);
 
     const now = song.currentTime();
-    const fSong = detectPitchSong();
 
-    // Barras de la canción (notas reales)
+    // detectar pitch canción (limitado)
+    if (frameCount % 4 === 0) {
+        lastSongPitch = detectPitchSong();
+    }
+    const fSong = lastSongPitch;
+
+    // barras canción
     if (fSong && fSong > 80 && fSong < 1100) {
-        if (!bars.length || now - bars[bars.length - 1].time > 0.15) {
+        if (!bars.length || now - bars[bars.length-1].time > 0.15) {
             bars.push({ y: freqToY(fSong), time: now });
 
             let note = freqToNoteName(fSong);
@@ -87,58 +94,59 @@ text("AHORA", width / 2, 18);
         }
     }
 
-    // Voz del usuario
+    // voz usuario
     pitchUser.getPitch((e,f)=> freqUser = f || 0);
     if (freqUser > 0) {
-        voiceTrail.push({ y: freqToY(freqUser), freq: freqUser, time: now });
+        voiceTrail.push({
+            y: freqToY(freqUser),
+            freq: freqUser,
+            time: now
+        });
     }
 
-    // Estela de la voz (guía de tonalidad) con degradado suave
+    // estela segmentada (NO cambia toda)
     strokeWeight(8);
     for (let i = 1; i < voiceTrail.length; i++) {
-        const pointPrev = voiceTrail[i - 1].time - now) * TIME_SCALE;
-        const pointCurr = voiceTrail[i].time - now) * TIME_SCALE;
+        const p1 = voiceTrail[i-1];
+        const p2 = voiceTrail[i];
 
-        const noteNamePrev = freqToNoteName(pointPrev.freq);
-        const noteNameCurr = freqToNoteName(pointCurr.freq);
+        const x1 = width/2 + (p1.time - now) * TIME_SCALE;
+        const x2 = width/2 + (p2.time - now) * TIME_SCALE;
+        if (x1 < 80 || x2 > width) continue;
 
-        const inKeyPrev = keyDetected ? noteInKey(noteNamePrev, songKey) : true;
-        const inKeyCurr = keyDetected ? noteInKey(noteNameCurr, songKey) : true;
+        const note1 = freqToNoteName(p1.freq);
+        const note2 = freqToNoteName(p2.freq);
 
-        const cPrev = inKeyPrev ? color(0,242,255,180) : color(255,60,60,180);
-        const cCurr = inKeyCurr ? color(0,242,255,180) : color(255,60,60,180);
+        const ok1 = keyDetected ? noteInKey(note1, songKey) : true;
+        const ok2 = keyDetected ? noteInKey(note2, songKey) : true;
 
-        const steps = 20; // más pasos = más suave
-        for (let t = 0; t < 1; t += 1/steps) {
-            const x1 = lerp(width/2 + (pointPrev.time - now) * 300, width/2 + (pointCurr.time - now) * 300, t);
-            const y1 = lerp(pointPrev.y, pointCurr.y, t);
-            const x2 = lerp(width/2 + (pointPrev.time - now) * 300, width/2 + (pointCurr.time - now) * 300, t + 1/steps);
-            const y2 = lerp(pointPrev.y, pointCurr.y, t + 1/steps);
-            const c = lerpColor(cPrev, cCurr, t);
-            stroke(c);
-            line(x1, y1, x2, y2);
-        }
+        const c1 = ok1 ? color(0,242,255,180) : color(255,60,60,180);
+        const c2 = ok2 ? color(0,242,255,180) : color(255,60,60,180);
+
+        stroke(lerpColor(c1, c2, 0.5));
+        line(x1, p1.y, x2, p2.y);
     }
 
-    // Barras magenta de la canción
+    // barras magenta canción
     stroke("#ff00ff");
     strokeWeight(12);
     for (let b of bars) {
         let x = width/2 + (b.time - now) * TIME_SCALE;
         if (x < 80 || x > width) continue;
-        line(x, b.y, x + 45, b.y);
+        line(x, b.y, x+45, b.y);
     }
 
-    // Punto actual de la voz
+    // punto actual voz
     if (freqUser > 0) {
         let y = freqToY(freqUser);
         fill(0,242,255,150); noStroke();
         ellipse(width/2,y,40);
-        fill(255); ellipse(width/2,y,15);
+        fill(255);
+        ellipse(width/2,y,15);
 
         let midi = Math.round(12*Math.log2(freqUser/440)+69);
         document.getElementById("note").innerText =
-            notes[midi % 12] + (keyDetected ? " | KEY: " + songKey : "");
+            notes[midi % 12] + (keyDetected ? " | " + songKey + " MAYOR" : "");
     } else {
         document.getElementById("note").innerText = "--";
     }
@@ -146,7 +154,7 @@ text("AHORA", width / 2, 18);
     updateUI();
 }
 
-// ======================= UTILIDADES =======================
+// ================= UTIL =================
 
 function freqToNoteName(freq) {
     let midi = Math.round(12 * Math.log2(freq / 440) + 69);
@@ -154,33 +162,24 @@ function freqToNoteName(freq) {
 }
 
 function noteInKey(note, key) {
-    if (!majorKeys[key]) return true;
-    return majorKeys[key].includes(note);
+    return majorKeys[key]?.includes(note);
 }
 
 function detectSongKey() {
     let max = 0;
-    let key = "--";
-
     for (let n in songNotesCount) {
         if (songNotesCount[n] > max) {
             max = songNotesCount[n];
-            key = n;
+            songKey = n;
         }
     }
-
-    songKey = key;
     keyDetected = true;
-
-    const panel = document.getElementById("key-panel");
-    panel.innerText = "TONALIDAD: " + songKey + " MAYOR";
-    panel.classList.remove("hidden");
 }
 
 function detectPitchSong() {
     let w = fftSong.waveform();
     let best = -1, bestCorr = 0;
-    for (let o=20;o<1000;o++) {
+    for (let o=20;o<800;o++) {
         let c=0;
         for (let i=0;i<w.length-o;i++) c+=w[i]*w[i+o];
         if (c>bestCorr) { bestCorr=c; best=o; }
@@ -203,7 +202,7 @@ function drawGrid() {
     stroke(0,242,255,40); line(80,0,80,height);
 }
 
-// ======================= UI =======================
+// ================= UI =================
 
 function updateUI() {
     let c=song.currentTime(), d=song.duration();
@@ -212,8 +211,7 @@ function updateUI() {
 }
 
 function togglePlay() {
-    if (song.isPlaying()) { song.pause(); playBtn.innerText="PLAY"; }
-    else { song.play(); playBtn.innerText="PAUSA"; }
+    song.isPlaying() ? song.pause() : song.play();
 }
 
 function saltar(s) {
@@ -236,21 +234,16 @@ function clickBarra(e) {
     song.jump((e.clientX-r.left)/r.width*song.duration());
 }
 
-// ======================= LETRA =======================
-
 function cargarLetra() {
     const text=document.getElementById("lyricsInput").value.trim();
     if (!text) return;
-
     const box=document.getElementById("lyrics-box");
     box.innerHTML="";
-
     text.split("\n").forEach(l=>{
         let s=document.createElement("span");
         s.textContent=l;
         box.appendChild(s);
     });
-
     document.getElementById("lyrics-panel").classList.remove("hidden");
 }
 
