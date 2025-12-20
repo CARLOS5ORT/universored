@@ -1,20 +1,12 @@
 // ================= CONFIG =================
-const TIME_SCALE = 160;
+const TIME_SCALE = 180;
 
 // ================= AUDIO =================
-let song;
-let mic;
-let pitch;
-let fft;
-
-let readySong = false;
-let readyMic = false;
-let readyPitch = false;
-
-// ================= DATA =================
-let freqUser = 0;
+let song, mic, pitchUser, fftSong;
 let bars = [];
 let voiceTrail = [];
+let freqUser = 0;
+let ready = false;
 
 // ================= NOTAS =================
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -22,108 +14,100 @@ const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 // ================= P5 =================
 function setup() {
     createCanvas(windowWidth, windowHeight);
-    textFont("Segoe UI");
 }
 
-// ================= START =================
 async function iniciarTodo() {
-    const fileInput = document.getElementById("audioFile");
-    if (!fileInput.files.length) {
-        alert("Selecciona un audio");
-        return;
-    }
+    const file = document.getElementById("audioFile").files[0];
+    if (!file) return;
 
-    // UI
     document.getElementById("setup-panel").classList.add("hidden");
     document.getElementById("footer-controls").classList.remove("hidden");
     document.getElementById("hud").classList.remove("hidden");
 
     cargarLetra();
-
-    // IMPORTANTE
     await getAudioContext().resume();
 
-    // ================= CANCION =================
-    song = loadSound(
-        URL.createObjectURL(fileInput.files[0]),
-        () => {
-            fft = new p5.FFT(0.8, 1024);
-            fft.setInput(song);
-            readySong = true;
-            tryStart();
-        }
-    );
+    song = loadSound(URL.createObjectURL(file), () => {
+        fftSong = new p5.FFT(0.9, 1024);
+        fftSong.setInput(song);
 
-    // ================= MIC =================
-    mic = new p5.AudioIn();
-    mic.start(() => {
-        readyMic = true;
-
-        const modelURL =
-            "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
-
-        pitch = ml5.pitchDetection(
-            modelURL,
-            getAudioContext(),
-            mic.stream,
-            () => {
-                readyPitch = true;
-                tryStart();
-            }
-        );
+        mic = new p5.AudioIn();
+        mic.start(() => {
+            const modelURL =
+                "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
+            pitchUser = ml5.pitchDetection(
+                modelURL,
+                getAudioContext(),
+                mic.stream,
+                () => {
+                    ready = true;
+                    song.play();
+                }
+            );
+        });
     });
 }
 
-// ================= TRY START =================
-function tryStart() {
-    if (readySong && readyMic && readyPitch) {
-        song.play();
-    }
-}
-
-// ================= DRAW =================
 function draw() {
     background(5, 5, 15);
-
-    if (!song || !song.isPlaying()) return;
-
-    const now = song.currentTime();
+    if (!ready) return;
 
     drawGrid();
 
-    // Línea vertical central
+    // Línea vertical central (AHORA)
     stroke(255, 255, 255, 120);
     strokeWeight(2);
     line(width / 2, 0, width / 2, height);
 
+    const now = song.currentTime();
+
+    // ================= PITCH CANCIÓN =================
+    const fSong = detectPitchSong();
+    if (fSong && fSong > 80 && fSong < 1100) {
+        if (!bars.length || now - bars[bars.length - 1].time > 0.15) {
+            bars.push({ y: freqToY(fSong), time: now });
+        }
+    }
+
     // ================= PITCH VOZ =================
-    pitch.getPitch((err, freq) => {
-        freqUser = freq || 0;
+    pitchUser.getPitch((e, f) => {
+        freqUser = f || 0;
     });
 
     if (freqUser > 0) {
         voiceTrail.push({
-            time: now,
-            y: freqToY(freqUser)
+            y: freqToY(freqUser),
+            time: now
         });
     }
 
-    // ================= ESTELA =================
+    // ================= ESTELA VOZ =================
     stroke(0, 242, 255, 180);
-    strokeWeight(6);
+    strokeWeight(8);
     for (let i = 1; i < voiceTrail.length; i++) {
         let x1 = width / 2 + (voiceTrail[i - 1].time - now) * TIME_SCALE;
         let x2 = width / 2 + (voiceTrail[i].time - now) * TIME_SCALE;
-        if (x2 < 0 || x1 > width) continue;
+        if (x1 < 80 || x2 > width) continue;
         line(x1, voiceTrail[i - 1].y, x2, voiceTrail[i].y);
     }
 
-    // ================= PUNTO ACTUAL =================
+    // ================= BARRAS CANCIÓN =================
+    stroke("#ff00ff");
+    strokeWeight(12);
+    for (let b of bars) {
+        let x = width / 2 + (b.time - now) * TIME_SCALE;
+        if (x < 80 || x > width) continue;
+        line(x, b.y, x + 45, b.y);
+    }
+
+    // ================= PUNTO VOZ ACTUAL =================
     if (freqUser > 0) {
         let y = freqToY(freqUser);
-        noStroke();
         fill(0, 242, 255, 150);
-        ellipse(width / 2, y, 30);
+        noStroke();
+        ellipse(width / 2, y, 40);
+        fill(255);
+        ellipse(width / 2, y, 15);
 
         let midi = Math.round(12 * Math.log2(freqUser / 440) + 69);
         document.getElementById("note").innerText = notes[midi % 12];
@@ -134,7 +118,25 @@ function draw() {
     updateUI();
 }
 
-// ================= UTILS =================
+// ================= UTILIDADES =================
+function detectPitchSong() {
+    let w = fftSong.waveform();
+    let best = -1, bestCorr = 0;
+
+    for (let o = 20; o < 800; o++) {
+        let c = 0;
+        for (let i = 0; i < w.length - o; i++) {
+            c += w[i] * w[i + o];
+        }
+        if (c > bestCorr) {
+            bestCorr = c;
+            best = o;
+        }
+    }
+
+    return best > 0 ? getAudioContext().sampleRate / best : null;
+}
+
 function freqToY(f) {
     return map(Math.log(f), Math.log(80), Math.log(1100), height - 160, 50);
 }
@@ -147,21 +149,30 @@ function drawGrid() {
         line(80, y, width, y);
         noStroke();
         fill(0, 242, 255, 120);
-        text(notes[i % 12], 25, y);
+        text(notes[i % 12] + (Math.floor(i / 12) - 1), 25, y);
     }
+    stroke(0, 242, 255, 40);
+    line(80, 0, 80, height);
 }
 
 // ================= UI =================
 function updateUI() {
     let c = song.currentTime();
     let d = song.duration();
-    document.getElementById("progress-bar").style.width = (c / d) * 100 + "%";
-    document.getElementById("time").innerText = Math.floor(c) + " / " + Math.floor(d);
+    document.getElementById("progress-bar").style.width =
+        (c / d) * 100 + "%";
+    document.getElementById("time").innerText =
+        Math.floor(c) + " / " + Math.floor(d);
 }
 
 function togglePlay() {
-    if (song.isPlaying()) song.pause();
-    else song.play();
+    if (song.isPlaying()) {
+        song.pause();
+        playBtn.innerText = "PLAY";
+    } else {
+        song.play();
+        playBtn.innerText = "PAUSA";
+    }
 }
 
 function saltar(s) {
@@ -170,16 +181,20 @@ function saltar(s) {
 
 function detener() {
     song.stop();
+    bars = [];
     voiceTrail = [];
 }
 
 function cambiarCancion() {
+    detener();
     location.reload();
 }
 
 function clickBarra(e) {
     let r = e.target.getBoundingClientRect();
-    song.jump(((e.clientX - r.left) / r.width) * song.duration());
+    song.jump(
+        ((e.clientX - r.left) / r.width) * song.duration()
+    );
 }
 
 // ================= LETRA =================
