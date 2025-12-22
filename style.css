@@ -96,6 +96,11 @@ body {
     color: #ff00ff;
 }
 
+#key {
+    font-size: 18px;
+    color: #00f2ff;
+}
+
 /* LETRA */
 #lyrics-panel {
     position: absolute;
