@@ -7,9 +7,7 @@ let ready = false;
 const TIME_SCALE = 300;
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
-// ===============================
-// CLAVE / TONALIDAD
-// ===============================
+// ===== CLAVE =====
 let keyEnergy = new Array(12).fill(0);
 let detectedKey = "--";
 let lastKeyUpdate = 0;
@@ -54,10 +52,14 @@ function draw() {
 
     drawGrid();
 
+    // Línea central
+    stroke(0,242,255,160);
+    strokeWeight(2);
+    line(width/2, 0, width/2, height);
+
     let now = song.currentTime();
     let fSong = detectPitchSong();
 
-    // ---- BARRAS DE LA CANCIÓN ----
     if (fSong && fSong > 80 && fSong < 1100) {
         if (!bars.length || now - bars[bars.length-1].time > 0.15) {
             bars.push({ y: freqToY(fSong), time: now });
@@ -75,7 +77,6 @@ function draw() {
     for (let i=1;i<voiceTrail.length;i++) {
         let x1 = width/2 + (voiceTrail[i-1].time - now) * TIME_SCALE;
         let x2 = width/2 + (voiceTrail[i].time - now) * TIME_SCALE;
-        if (x1<80||x2>width) continue;
         line(x1, voiceTrail[i-1].y, x2, voiceTrail[i].y);
     }
 
@@ -83,30 +84,28 @@ function draw() {
     strokeWeight(12);
     for (let b of bars) {
         let x = width/2 + (b.time - now) * TIME_SCALE;
-        if (x<80||x>width) continue;
         line(x, b.y, x+45, b.y);
     }
 
-    // ---- NOTA DEL USUARIO ----
-    if (freqUser>0) {
-        let y=freqToY(freqUser);
-        fill(0,242,255,150); noStroke();
-        ellipse(width/2,y,40);
-        fill(255); ellipse(width/2,y,15);
-
-        let midi=Math.round(12*Math.log2(freqUser/440)+69);
-        document.getElementById("note").innerText=notes[midi%12];
+    if (freqUser > 0) {
+        let midi = Math.round(12*Math.log2(freqUser/440)+69);
+        document.getElementById("note").innerText = notes[midi%12];
     } else {
-        document.getElementById("note").innerText="--";
+        document.getElementById("note").innerText = "--";
     }
 
-    // ===============================
-    // ANALISIS DE CLAVE (CORRECTO)
-    // ===============================
+    analyzeKey();
+    document.getElementById("key").innerText = detectedKey;
+
+    updateUI();
+}
+
+// ===== ANALISIS DE CLAVE =====
+function analyzeKey() {
     let spectrum = fftSong.analyze();
     let nyquist = getAudioContext().sampleRate / 2;
 
-    for (let i = 0; i < spectrum.length; i++) {
+    for (let i=0;i<spectrum.length;i++) {
         let amp = spectrum[i];
         if (amp < 5) continue;
 
@@ -114,9 +113,7 @@ function draw() {
         if (freq < 80 || freq > 2000) continue;
 
         let midi = Math.round(12 * Math.log2(freq / 440) + 69);
-        let note = ((midi % 12) + 12) % 12;
-
-        keyEnergy[note] += amp;
+        keyEnergy[((midi % 12) + 12) % 12] += amp;
     }
 
     if (millis() - lastKeyUpdate > 3000) {
@@ -124,32 +121,15 @@ function draw() {
         keyEnergy.fill(0);
         lastKeyUpdate = millis();
     }
-
-    // ---- TEXTO CLAVE ----
-    noStroke();
-    fill(255);
-    textAlign(RIGHT, BOTTOM);
-    textSize(16);
-    text("Clave: " + detectedKey, width - 20, height - 20);
-
-    // ---- LINEA CENTRAL (AL FINAL PARA QUE SE VEA) ----
-    stroke(0,242,255,160);
-    strokeWeight(2);
-    line(width/2, 0, width/2, height);
-
-    updateUI();
 }
 
-// ===============================
-// FUNCIONES
-// ===============================
 function detectKeyFromEnergy(energy) {
     let bestScore = -Infinity;
     let bestKey = "--";
 
-    for (let i = 0; i < 12; i++) {
-        let major = 0, minor = 0;
-        for (let j = 0; j < 12; j++) {
+    for (let i=0;i<12;i++) {
+        let major=0, minor=0;
+        for (let j=0;j<12;j++) {
             major += energy[(j+i)%12] * MAJOR_PROFILE[j];
             minor += energy[(j+i)%12] * MINOR_PROFILE[j];
         }
@@ -159,6 +139,7 @@ function detectKeyFromEnergy(energy) {
     return bestKey;
 }
 
+// ===== UTILIDADES =====
 function drawGrid() {
     for (let i=36;i<84;i++) {
         let f=440*Math.pow(2,(i-69)/12);
@@ -199,6 +180,7 @@ function togglePlay() {
 function saltar(s){song.jump(constrain(song.currentTime()+s,0,song.duration()));}
 function detener(){song.stop();bars=[];voiceTrail=[];}
 function cambiarCancion(){detener();location.reload();}
+
 function clickBarra(e){
     let r=e.target.getBoundingClientRect();
     song.jump((e.clientX-r.left)/r.width*song.duration());
