@@ -7,6 +7,16 @@ let ready = false;
 const TIME_SCALE = 300;
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
+// ===============================
+// CLAVE / TONALIDAD
+// ===============================
+let keyEnergy = new Array(12).fill(0);
+let detectedKey = "--";
+let lastKeyUpdate = 0;
+
+const MAJOR_PROFILE = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+const MINOR_PROFILE = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+
 function setup() {
     createCanvas(windowWidth, windowHeight);
 }
@@ -47,6 +57,9 @@ function draw() {
     let now = song.currentTime();
     let fSong = detectPitchSong();
 
+    // ===============================
+    // BARRAS DE LA CANCIÓN
+    // ===============================
     if (fSong && fSong > 80 && fSong < 1100) {
         if (!bars.length || now - bars[bars.length-1].time > 0.15) {
             bars.push({ y: freqToY(fSong), time: now });
@@ -76,6 +89,9 @@ function draw() {
         line(x, b.y, x+45, b.y);
     }
 
+    // ===============================
+    // NOTA DEL USUARIO
+    // ===============================
     if (freqUser>0) {
         let y=freqToY(freqUser);
         fill(0,242,255,150); noStroke();
@@ -88,7 +104,56 @@ function draw() {
         document.getElementById("note").innerText="--";
     }
 
+    // ===============================
+    // ANALISIS DE CLAVE (CANCIÓN)
+    // ===============================
+    let spectrum = fftSong.analyze();
+    for (let i = 0; i < spectrum.length; i++) {
+        let freq = fftSong.getFreq(i);
+        if (freq < 80 || freq > 2000) continue;
+
+        let midi = Math.round(12 * Math.log2(freq / 440) + 69);
+        let note = midi % 12;
+        if (note < 0) note += 12;
+
+        keyEnergy[note] += spectrum[i];
+    }
+
+    if (millis() - lastKeyUpdate > 3000) {
+        detectedKey = detectKeyFromEnergy(keyEnergy);
+        keyEnergy.fill(0);
+        lastKeyUpdate = millis();
+    }
+
+    // ===============================
+    // MOSTRAR CLAVE (ABAJO DERECHA)
+    // ===============================
+    noStroke();
+    fill(255);
+    textAlign(RIGHT, BOTTOM);
+    textSize(16);
+    text("Clave: " + detectedKey, width - 20, height - 20);
+
     updateUI();
+}
+
+// ===============================
+// FUNCIONES
+// ===============================
+function detectKeyFromEnergy(energy) {
+    let bestScore = -Infinity;
+    let bestKey = "--";
+
+    for (let i = 0; i < 12; i++) {
+        let major = 0, minor = 0;
+        for (let j = 0; j < 12; j++) {
+            major += energy[(j+i)%12] * MAJOR_PROFILE[j];
+            minor += energy[(j+i)%12] * MINOR_PROFILE[j];
+        }
+        if (major > bestScore) { bestScore = major; bestKey = notes[i] + " mayor"; }
+        if (minor > bestScore) { bestScore = minor; bestKey = notes[i] + " menor"; }
+    }
+    return bestKey;
 }
 
 function drawGrid() {
@@ -131,7 +196,6 @@ function togglePlay() {
 function saltar(s){song.jump(constrain(song.currentTime()+s,0,song.duration()));}
 function detener(){song.stop();bars=[];voiceTrail=[];}
 function cambiarCancion(){detener();location.reload();}
-
 function clickBarra(e){
     let r=e.target.getBoundingClientRect();
     song.jump((e.clientX-r.left)/r.width*song.duration());
