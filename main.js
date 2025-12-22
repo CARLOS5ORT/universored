@@ -33,16 +33,15 @@ async function iniciarTodo() {
     if (!file) return;
 
     document.getElementById("setup-panel").classList.add("hidden");
-
-    // 1️⃣ ANALISIS OFFLINE DE TODA LA CANCIÓN
-    songKey = "Analizando...";
     document.getElementById("hud").classList.remove("hidden");
+    document.getElementById("footer-controls").classList.remove("hidden");
 
+    songKey = "Analizando...";
+
+    // 1️⃣ ANALISIS OFFLINE REAL (RÁPIDO)
     await analyzeSongKeyOffline(file);
 
     // 2️⃣ INICIAR SISTEMA NORMAL
-    document.getElementById("footer-controls").classList.remove("hidden");
-
     cargarLetra();
     await getAudioContext().resume();
 
@@ -54,57 +53,68 @@ async function iniciarTodo() {
         mic.start(() => {
             const modelURL =
               "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
-            pitchUser = ml5.pitchDetection(modelURL, getAudioContext(), mic.stream, () => {
-                ready = true;
-                song.play();
-            });
+            pitchUser = ml5.pitchDetection(
+                modelURL,
+                getAudioContext(),
+                mic.stream,
+                () => {
+                    ready = true;
+                    song.play();
+                }
+            );
         });
     });
 }
 
 // ===============================
-// ANALISIS OFFLINE DE CLAVE
+// ANALISIS OFFLINE DE CLAVE (RÁPIDO)
 // ===============================
 async function analyzeSongKeyOffline(file) {
     const arrayBuffer = await file.arrayBuffer();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioCtx = new AudioContext();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    const channelData = audioBuffer.getChannelData(0);
-    const sampleRate = audioBuffer.sampleRate;
-    const windowSize = 4096;
-    const step = 2048;
+    const offlineCtx = new OfflineAudioContext(
+        1,
+        audioBuffer.length,
+        audioBuffer.sampleRate
+    );
 
-    for (let i = 0; i < channelData.length - windowSize; i += step) {
-        let slice = channelData.slice(i, i + windowSize);
-        analyzeWindow(slice, sampleRate);
-    }
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
 
-    songKey = detectKeyFromEnergy(keyEnergy);
-}
+    const analyser = offlineCtx.createAnalyser();
+    analyser.fftSize = 4096;
 
-// FFT SIMPLE PARA ANALISIS OFFLINE
-function analyzeWindow(buffer, sampleRate) {
-    let N = buffer.length;
+    source.connect(analyser);
+    analyser.connect(offlineCtx.destination);
+    source.start(0);
 
-    for (let k = 0; k < N / 2; k++) {
-        let re = 0, im = 0;
-        for (let n = 0; n < N; n++) {
-            let angle = (2 * Math.PI * k * n) / N;
-            re += buffer[n] * Math.cos(angle);
-            im -= buffer[n] * Math.sin(angle);
+    offlineCtx.oncomplete = () => {
+        songKey = detectKeyFromEnergy(keyEnergy);
+    };
+
+    const freqData = new Float32Array(analyser.frequencyBinCount);
+
+    function process() {
+        analyser.getFloatFrequencyData(freqData);
+        const nyquist = audioBuffer.sampleRate / 2;
+
+        for (let i = 0; i < freqData.length; i++) {
+            const mag = freqData[i];
+            if (mag < -80) continue;
+
+            const freq = (i / freqData.length) * nyquist;
+            if (freq < 80 || freq > 2000) continue;
+
+            const midi = Math.round(12 * Math.log2(freq / 440) + 69);
+            const note = ((midi % 12) + 12) % 12;
+            keyEnergy[note] += Math.pow(10, mag / 20);
         }
-
-        let mag = Math.sqrt(re * re + im * im);
-        if (mag < 0.01) continue;
-
-        let freq = (k * sampleRate) / N;
-        if (freq < 80 || freq > 2000) continue;
-
-        let midi = Math.round(12 * Math.log2(freq / 440) + 69);
-        let note = ((midi % 12) + 12) % 12;
-        keyEnergy[note] += mag;
     }
+
+    analyser.onaudioprocess = process;
+    await offlineCtx.startRendering();
 }
 
 // ===============================
@@ -132,7 +142,6 @@ function detectKeyFromEnergy(energy) {
             bestKey = notes[i] + " menor";
         }
     }
-
     return bestKey;
 }
 
@@ -147,10 +156,14 @@ function draw() {
     strokeWeight(2);
     line(width/2, 0, width/2, height);
 
-    if (!ready) {
-        drawHUD();
-        return;
-    }
+    // HUD CLAVE
+    noStroke();
+    fill(255);
+    textAlign(LEFT, TOP);
+    textSize(16);
+    text("Clave: " + songKey, 20, 20);
+
+    if (!ready) return;
 
     drawGrid();
 
@@ -198,23 +211,11 @@ function draw() {
         document.getElementById("note").innerText="--";
     }
 
-    drawHUD();
     updateUI();
 }
 
 // ===============================
-// HUD
-// ===============================
-function drawHUD() {
-    noStroke();
-    fill(255);
-    textAlign(LEFT, TOP);
-    textSize(16);
-    text("Clave: " + songKey, 20, 20);
-}
-
-// ===============================
-// RESTO (IGUAL A TU PROYECTO)
+// RESTO DE FUNCIONES
 // ===============================
 function drawGrid() {
     for (let i=36;i<84;i++) {
