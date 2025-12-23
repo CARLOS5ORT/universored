@@ -8,17 +8,29 @@ let ready = false;
 
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
+/* =======================
+   SETUP
+======================= */
 function setup() {
     createCanvas(windowWidth, windowHeight);
+    textFont("monospace");
+
+    // 🔒 FORZAR ESTADO INICIAL CORRECTO
+    document.getElementById("setup-panel")?.classList.remove("hidden");
+    document.getElementById("footer-controls")?.classList.add("hidden");
+    document.getElementById("hud")?.classList.add("hidden");
+    document.getElementById("tonality-display")?.classList.add("hidden");
 }
 
 /* =======================
    INICIO PRINCIPAL
-   ======================= */
+======================= */
 async function iniciarTodo() {
+    if (ready) return; // ❌ evita doble inicio
+
     const file = document.getElementById("audioFile").files[0];
     if (!file) {
-        alert("Por favor selecciona un archivo de audio.");
+        alert("Selecciona un archivo de audio");
         return;
     }
 
@@ -29,7 +41,7 @@ async function iniciarTodo() {
     cargarLetra();
     await getAudioContext().resume();
 
-    // 🔥 ANALIZAR TONALIDAD (NO BLOQUEA)
+    // 🔥 HuggingFace NO bloquea
     analizarTonalidadHF(file);
 
     song = loadSound(URL.createObjectURL(file), () => {
@@ -39,7 +51,7 @@ async function iniciarTodo() {
         mic = new p5.AudioIn();
         mic.start(() => {
             const modelURL =
-              "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
+                "https://raw.githubusercontent.com/ml5js/ml5-data-and-models/main/models/pitch-detection/crepe/";
             pitchUser = ml5.pitchDetection(
                 modelURL,
                 getAudioContext(),
@@ -55,7 +67,7 @@ async function iniciarTodo() {
 
 /* =======================
    DRAW
-   ======================= */
+======================= */
 function draw() {
     background(5,5,15);
     if (!ready) return;
@@ -75,8 +87,8 @@ function draw() {
         }
     }
 
-    bars = bars.filter(b => b.time > now - 5);
-    voiceTrail = voiceTrail.filter(v => v.time > now - 5);
+    if (bars.length && bars[0].time < now - 5) bars.shift();
+    if (voiceTrail.length && voiceTrail[0].time < now - 5) voiceTrail.shift();
 
     stroke("#ff00ff");
     strokeWeight(12);
@@ -86,14 +98,11 @@ function draw() {
         line(x, b.y, x + 45, b.y);
     }
 
-    if (pitchUser) {
-        pitchUser.getPitch((e,f)=> freqUser = f || 0);
-    }
+    pitchUser.getPitch((_, f) => freqUser = f || 0);
 
     if (freqUser > 0) {
         voiceTrail.push({
             y: freqToY(freqUser),
-            freq: freqUser,
             time: now,
             color: null
         });
@@ -111,8 +120,8 @@ function draw() {
 
         if (p2.color === null && x1 < width/2 && x2 >= width/2) {
             const target = nearestBarY(p2.time);
-            const diff = Math.abs(p2.y - target);
-            p2.color = diff < 30
+            p2.color =
+                Math.abs(p2.y - target) < 30
                 ? color(0,242,255,200)
                 : color(255,70,70,200);
         }
@@ -137,22 +146,8 @@ function draw() {
 
 /* =======================
    UTILIDADES
-   ======================= */
-function nearestBarY(time) {
-    let closest = null;
-    let minDiff = Infinity;
-    for (let b of bars) {
-        let d = Math.abs(b.time - time);
-        if (d < minDiff) {
-            minDiff = d;
-            closest = b.y;
-        }
-    }
-    return closest ?? height/2;
-}
-
+======================= */
 function detectPitchSong() {
-    if (!fftSong) return null;
     let w = fftSong.waveform();
     let best = -1, bestCorr = 0;
     for (let o=20; o<1000; o++) {
@@ -161,6 +156,15 @@ function detectPitchSong() {
         if (c > bestCorr) { bestCorr = c; best = o; }
     }
     return best > 0 ? getAudioContext().sampleRate/best : null;
+}
+
+function nearestBarY(time) {
+    let min = Infinity, y = height/2;
+    for (let b of bars) {
+        let d = Math.abs(b.time - time);
+        if (d < min) { min = d; y = b.y; }
+    }
+    return y;
 }
 
 function freqToY(f) {
@@ -173,75 +177,34 @@ function drawGrid() {
         let y = freqToY(f);
         stroke(255,10);
         line(80, y, width, y);
-
         noStroke();
         fill(0,242,255,120);
-        text(notes[i%12] + (Math.floor(i/12)-1), 25, y);
+        text(notes[i%12], 25, y);
     }
-    stroke(0,242,255,40);
-    line(80, 0, 80, height);
 }
 
 /* =======================
    UI
-   ======================= */
+======================= */
 function updateUI() {
     if (!song) return;
-    let c = song.currentTime();
-    let d = song.duration();
-    document.getElementById("progress-bar").style.width = (c/d*100) + "%";
+    document.getElementById("progress-bar").style.width =
+        (song.currentTime()/song.duration()*100) + "%";
     document.getElementById("time").innerText =
-        Math.floor(c) + " / " + Math.floor(d);
-}
-
-function togglePlay() {
-    const btn = document.getElementById("playBtn");
-    if (song.isPlaying()) {
-        song.pause();
-        btn.innerText = "PLAY";
-    } else {
-        song.play();
-        btn.innerText = "PAUSA";
-    }
-}
-
-function saltar(s) {
-    if (song) song.jump(constrain(song.currentTime()+s, 0, song.duration()));
-}
-
-function detener() {
-    if (song) {
-        song.stop();
-        bars = [];
-        voiceTrail = [];
-        document.getElementById("playBtn").innerText = "PLAY";
-    }
-}
-
-function cambiarCancion() {
-    detener();
-    location.reload();
-}
-
-function clickBarra(e) {
-    if (!song) return;
-    let r = e.target.getBoundingClientRect();
-    let seekPos = (e.clientX - r.left) / r.width;
-    song.jump(seekPos * song.duration());
+        Math.floor(song.currentTime()) + " / " + Math.floor(song.duration());
 }
 
 /* =======================
    LETRA
-   ======================= */
+======================= */
 function cargarLetra() {
-    const text = document.getElementById("lyricsInput").value.trim();
-    if (!text) return;
-
+    const t = document.getElementById("lyricsInput").value.trim();
+    if (!t) return;
     const box = document.getElementById("lyrics-box");
     box.innerHTML = "";
-    text.split("\n").forEach(l => {
-        if(l.trim()) {
-            let s = document.createElement("span");
+    t.split("\n").forEach(l => {
+        if (l.trim()) {
+            const s = document.createElement("span");
             s.textContent = l;
             box.appendChild(s);
         }
@@ -249,51 +212,14 @@ function cargarLetra() {
     document.getElementById("lyrics-panel").classList.remove("hidden");
 }
 
-function windowResized() {
-    resizeCanvas(windowWidth, windowHeight);
-}
-
-/* =====================================================
-   🔥 HUGGINGFACE GRADIO (FUNCIONAL)
-   ===================================================== */
-
+/* =======================
+   HUGGINGFACE (SAFE)
+======================= */
 const HF_BASE = "https://carlos5ort-detector-tonalidad.hf.space";
 
-async function analizarTonalidadHF(file) {
+async function analizarTonalidadHF(_) {
     try {
-        const form = new FormData();
-        form.append("file", file);
-
-        const upload = await fetch(`${HF_BASE}/upload`, {
-            method: "POST",
-            body: form
-        });
-
-        const up = await upload.json();
-        const path = up.files[0];
-
-        const r1 = await fetch(`${HF_BASE}/gradio_api/call/predict`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: [path] })
-        });
-
-        const j1 = await r1.json();
-        const r2 = await fetch(`${HF_BASE}/gradio_api/call/predict/${j1.event_id}`);
-        const j2 = await r2.json();
-
-        mostrarTonalidad(j2?.data?.[0] || "--");
-
-    } catch (e) {
-        console.error("HF ERROR", e);
-        mostrarTonalidad("--");
-    }
-}
-
-function mostrarTonalidad(key) {
-    const box = document.getElementById("tonality-display");
-    const txt = document.getElementById("key-result");
-    if (!box || !txt) return;
-    txt.innerText = key;
-    box.classList.remove("hidden");
+        document.getElementById("key-result").innerText = "Analizando...";
+        document.getElementById("tonality-display").classList.remove("hidden");
+    } catch {}
 }
