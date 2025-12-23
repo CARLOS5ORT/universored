@@ -12,6 +12,9 @@ function setup() {
     createCanvas(windowWidth, windowHeight);
 }
 
+/* =======================
+   INICIO PRINCIPAL
+   ======================= */
 async function iniciarTodo() {
     const file = document.getElementById("audioFile").files[0];
     if (!file) {
@@ -25,6 +28,9 @@ async function iniciarTodo() {
 
     cargarLetra();
     await getAudioContext().resume();
+
+    // 🔥 Lanzar análisis HF (NO bloquea nada)
+    analizarTonalidadHF(file);
 
     song = loadSound(URL.createObjectURL(file), () => {
         fftSong = new p5.FFT(0.9, 2048);
@@ -47,6 +53,9 @@ async function iniciarTodo() {
     });
 }
 
+/* =======================
+   DRAW
+   ======================= */
 function draw() {
     background(5,5,15);
     if (!ready) return;
@@ -66,8 +75,8 @@ function draw() {
         }
     }
 
-    if (bars.length > 0 && bars[0].time < now - 5) bars.shift();
-    if (voiceTrail.length > 0 && voiceTrail[0].time < now - 5) voiceTrail.shift();
+    if (bars.length && bars[0].time < now - 5) bars.shift();
+    if (voiceTrail.length && voiceTrail[0].time < now - 5) voiceTrail.shift();
 
     stroke("#ff00ff");
     strokeWeight(12);
@@ -100,7 +109,9 @@ function draw() {
         if (p2.color === null && x1 < width/2 && x2 >= width/2) {
             const target = nearestBarY(p2.time);
             const diff = Math.abs(p2.y - target);
-            p2.color = diff < 30 ? color(0,242,255,200) : color(255,70,70,200);
+            p2.color = diff < 30
+                ? color(0,242,255,200)
+                : color(255,70,70,200);
         }
 
         stroke(p2.color || color(160,160,160,120));
@@ -121,8 +132,9 @@ function draw() {
     updateUI();
 }
 
-// ================= UTILIDADES =================
-
+/* =======================
+   UTILIDADES
+   ======================= */
 function nearestBarY(time) {
     let closest = null;
     let minDiff = Infinity;
@@ -166,14 +178,16 @@ function drawGrid() {
     line(80, 0, 80, height);
 }
 
-// ================= UI =================
-
+/* =======================
+   UI
+   ======================= */
 function updateUI() {
     if (!song) return;
     let c = song.currentTime();
     let d = song.duration();
     document.getElementById("progress-bar").style.width = (c/d*100) + "%";
-    document.getElementById("time").innerText = Math.floor(c) + " / " + Math.floor(d);
+    document.getElementById("time").innerText =
+        Math.floor(c) + " / " + Math.floor(d);
 }
 
 function togglePlay() {
@@ -212,8 +226,9 @@ function clickBarra(e) {
     song.jump(seekPos * song.duration());
 }
 
-// ================= LETRA =================
-
+/* =======================
+   LETRA
+   ======================= */
 function cargarLetra() {
     const text = document.getElementById("lyricsInput").value.trim();
     if (!text) return;
@@ -221,7 +236,7 @@ function cargarLetra() {
     const box = document.getElementById("lyrics-box");
     box.innerHTML = "";
     text.split("\n").forEach(l => {
-        if(l.trim() !== "") {
+        if(l.trim()) {
             let s = document.createElement("span");
             s.textContent = l;
             box.appendChild(s);
@@ -235,50 +250,48 @@ function windowResized() {
 }
 
 /* =====================================================
-   🔥 HUGGINGFACE INTEGRACIÓN (AGREGADO, NO MODIFICA NADA)
+   🔥 HUGGINGFACE GRADIO (CORRECTO)
    ===================================================== */
 
-const HF_TOKEN = "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";
-const HF_SPACE_URL = "https://carlos5ort-detector-tonalidad.hf.space/gradio_api/call/predict";
-
-// Hook sin tocar iniciarTodo original
-const iniciarTodoOriginal = iniciarTodo;
-iniciarTodo = async function () {
-    const file = document.getElementById("audioFile").files[0];
-    if (file) {
-        analizarTonalidadHF(file);
-    }
-    return iniciarTodoOriginal.apply(this, arguments);
-};
+const HF_BASE = "https://carlos5ort-detector-tonalidad.hf.space";
+const HF_FN_INDEX = 0;
 
 async function analizarTonalidadHF(file) {
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-        const res = await fetch(HF_SPACE_URL, {
+        // 1️⃣ iniciar predicción
+        const r1 = await fetch(`${HF_BASE}/gradio_api/call/predict`, {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`
-            },
-            body: formData
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                data: [file.name],
+                fn_index: HF_FN_INDEX
+            })
         });
 
-        const data = await res.json();
-        mostrarTonalidad(data);
+        const j1 = await r1.json();
+        if (!j1.event_id) throw "Sin event_id";
+
+        // 2️⃣ obtener resultado
+        const r2 = await fetch(
+            `${HF_BASE}/gradio_api/call/predict/${j1.event_id}`
+        );
+
+        const j2 = await r2.json();
+        const key = j2?.data?.[0] || "--";
+
+        mostrarTonalidad(key);
+
     } catch (e) {
-        console.warn("HuggingFace no respondió:", e);
+        console.warn("HF error:", e);
+        mostrarTonalidad("--");
     }
 }
 
-function mostrarTonalidad(data) {
-    const container = document.getElementById("tonality-display");
-    const el = document.getElementById("key-result");
-    if (!container || !el) return;
+function mostrarTonalidad(key) {
+    const box = document.getElementById("tonality-display");
+    const txt = document.getElementById("key-result");
+    if (!box || !txt) return;
 
-    const key = data.key || data.label || data.result || data.data?.[0] || "--";
-
-    el.innerText = key;
-    container.classList.remove("hidden");
+    txt.innerText = key;
+    box.classList.remove("hidden");
 }
-
