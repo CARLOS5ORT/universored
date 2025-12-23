@@ -17,9 +17,15 @@
         <h2>VOICE MASTER</h2>
         <input type="file" id="audioFile" accept="audio/*"><br><br>
         <textarea id="lyricsInput" placeholder="Pega aquí la letra..."></textarea><br><br>
-        <button class="btn-ctrl btn-main" onclick="iniciarTodo()">
+        <button class="btn-ctrl btn-main" id="btnAnalizar">
             CARGAR Y ANALIZAR
         </button>
+    </div>
+
+    <div id="tonality-display" class="hidden" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <span style="color: #ff00ff; font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 10px #ff00ff;">
+            CLAVE: <span id="key-result">Analizando...</span>
+        </span>
     </div>
 
     <div id="footer-controls" class="hidden">
