@@ -1,170 +1,132 @@
-// --- CONFIGURACIÓN ---
+// --- 2. CONFIGURACIÓN ---
 const HF_API_URL = "https://huggingface.co/spaces/carlos5ort/detector-tonalidad"; // Ejemplo de modelo
 const HF_TOKEN = "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"; // <--- ¡PEGA TU TOKEN DE HUGGING FACE AQUÍ!
 
-// --- ELEMENTOS DOM ---
+
+/* =========================================
+   2. ELEMENTOS DEL DOM
+   ========================================= */
 const btnCargar = document.getElementById('btnCargar');
 const inputAudio = document.getElementById('inputAudio');
-const statusMsg = document.getElementById('status-msg');
-const setupPanel = document.getElementById('setup-panel');
-const visContainer = document.getElementById('visualizer-container');
-const displayTonality = document.getElementById('display-tonality');
 const audioPlayer = document.getElementById('audio-player');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const displayTonality = document.getElementById('display-tonality');
 
-// Variables globales para visualización
-let audioContext, analyser, dataArray;
-let tonalidadGlobal = "Desconocida";
+/* =========================================
+   3. VARIABLES DE AUDIO (Líneas Magenta)
+   ========================================= */
+let audioContext;
+let analyser;
+let dataArray;
 
-// --- LÓGICA PRINCIPAL ---
-
+/* =========================================
+   4. LOGICA DE CARGA Y ANÁLISIS IA
+   ========================================= */
 btnCargar.addEventListener('click', async () => {
     const file = inputAudio.files[0];
-    if (!file) {
-        alert("Por favor selecciona un archivo de audio.");
-        return;
-    }
+    if (!file) return alert("Por favor selecciona un archivo.");
 
-    // 1. UI: Indicar carga
+    // Cambiar estado visual del botón sin mover el panel
+    const textoOriginal = btnCargar.innerText;
+    btnCargar.innerText = "Analizando con IA...";
     btnCargar.disabled = true;
-    btnCargar.innerText = "Analizando Audio...";
-    statusMsg.innerText = "Enviando datos a Hugging Face (esto puede tardar unos segundos)...";
 
     try {
-        // 2. LLAMADA API: Esperamos aquí (await)
-        // NOTA: Si el archivo es muy grande, podrías recortarlo antes, 
-        // pero para este ejemplo enviamos el archivo directo.
-        const resultado = await analizarConHuggingFace(file);
+        // --- LLAMADA ASÍNCRONA A HUGGING FACE ---
+        const response = await fetch(HF_API_URL, {
+            headers: { 
+                Authorization: HF_TOKEN,
+                "x-wait-for-model": "true" 
+            },
+            method: "POST",
+            body: file
+        });
         
-        // Procesar respuesta
-        console.log("Respuesta IA:", resultado);
-        
-        // Dependiendo del modelo, la respuesta varía. 
-        // Asumimos formato estándar de clasificación [{label: "C", score: 0.9}, ...]
-        if (Array.isArray(resultado) && resultado.length > 0) {
-            tonalidadGlobal = resultado[0].label; 
-        } else {
-            tonalidadGlobal = "No detectada";
+        const data = await response.json();
+
+        // Si la IA responde, actualizamos el texto de la tonalidad
+        if (data && data[0]) {
+            displayTonality.innerText = "Tonalidad: " + data[0].label;
         }
 
-        statusMsg.innerText = "¡Análisis completado!";
-
-        // 3. TRANSICIÓN A VISUALIZADOR
-        iniciarVisualizador(file);
-
     } catch (error) {
-        console.error(error);
-        statusMsg.innerText = "Error en el análisis. Iniciando sin IA...";
-        tonalidadGlobal = "Error API";
-        setTimeout(() => iniciarVisualizador(file), 1000);
+        console.error("Error IA:", error);
+        displayTonality.innerText = "Tonalidad: No disponible";
+    } finally {
+        // Restaurar botón y ocultar panel de carga (tu lógica original)
+        btnCargar.innerText = textoOriginal;
+        btnCargar.disabled = false;
+        
+        // Transición a la pantalla del visualizador
+        document.getElementById('setup-panel').classList.add('hidden');
+        document.getElementById('visualizer-container').classList.remove('hidden');
     }
+
+    // Iniciar reproducción y visualización
+    iniciarReproduccion(file);
 });
 
-async function analizarConHuggingFace(file) {
-    // Leemos el archivo como binario
-    const response = await fetch(HF_API_URL, {
-        headers: { Authorization: HF_TOKEN },
-        method: "POST",
-        body: file,
-    });
-    
-    if (!response.ok) throw new Error("Error conectando con HF");
-    return await response.json();
-}
-
-function iniciarVisualizador(file) {
-    // Ocultar panel de carga
-    setupPanel.style.opacity = 0;
-    setTimeout(() => {
-        setupPanel.classList.add('hidden');
-        visContainer.classList.remove('hidden');
-    }, 1000);
-
-    // Actualizar texto en pantalla
-    displayTonality.innerText = `Tonalidad: ${tonalidadGlobal}`;
-
-    // Configurar Audio
+/* =========================================
+   5. VISUALIZADOR (Tus líneas magenta originales)
+   ========================================= */
+function iniciarReproduccion(file) {
     const fileURL = URL.createObjectURL(file);
     audioPlayer.src = fileURL;
     audioPlayer.play();
 
-    // Configurar Web Audio API para las líneas que bailan
-    configurarAudioAnalyzer();
-    
-    // Iniciar bucle de dibujo
-    animar();
-}
+    // Configurar el analizador de audio si no existe
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        analyser = audioContext.createAnalyser();
+        
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
 
-// --- VISUALIZACIÓN (MAGENTA LINES) ---
-
-function configurarAudioAnalyzer() {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioContext.createMediaElementSource(audioPlayer);
-    analyser = audioContext.createAnalyser();
-    
-    source.connect(analyser);
-    analyser.connect(audioContext.destination);
-
-    analyser.fftSize = 256; // Resolución del análisis
-    const bufferLength = analyser.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
+        analyser.fftSize = 256; 
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        
+        animar();
+    }
 }
 
 function animar() {
-    // Ajustar canvas al tamaño de ventana
+    // Ajustar canvas al tamaño de ventana sin deformar
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
     requestAnimationFrame(animar);
 
-    // Obtener datos de frecuencia del audio
-    if(analyser) analyser.getByteFrequencyData(dataArray);
+    if(analyser) {
+        analyser.getByteFrequencyData(dataArray);
+    }
 
-    // Fondo semi-transparente para efecto de "estela" (trails)
+    // FONDO: Tu efecto de estela (trail) original
     ctx.fillStyle = 'rgba(5, 5, 5, 0.2)'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if(!dataArray) return;
 
-    // DIBUJAR LÍNEAS MAGENTA
+    // DIBUJO DE LÍNEAS MAGENTA
     const barWidth = (canvas.width / dataArray.length) * 2.5;
-    let barHeight;
     let x = 0;
 
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height / 2);
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#ff00ff"; // Brillo magenta
+    ctx.strokeStyle = "#ff00ff"; // Línea magenta
 
-    // Dibujamos una onda suave conectando puntos
     for (let i = 0; i < dataArray.length; i++) {
-        barHeight = dataArray[i]; 
-        
-        // Color Magenta Dinámico
-        // Más brillante cuanto más alto el volumen de esa frecuencia
-        const r = 255;
-        const g = 0;
-        const b = 255; 
-        const alpha = barHeight / 255;
-
-        // Estilo de línea
-        ctx.strokeStyle = `rgba(${r},${g},${b}, ${alpha + 0.2})`;
-        ctx.lineWidth = 3;
-
-        // Dibujo tipo osciloscopio
+        const barHeight = dataArray[i];
         const y = (canvas.height / 2) - (barHeight * 1.5);
-        
-        // Curvas suaves
-        ctx.lineTo(x, y);
 
-        // Efecto espejo (abajo)
-        // ctx.lineTo(x, (canvas.height / 2) + (barHeight * 1.5)); 
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
 
         x += barWidth + 1;
     }
-    
     ctx.stroke();
-    
-    // Añadir brillo extra al centro
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = "#ff00ff";
 }
