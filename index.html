@@ -2,50 +2,43 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Master Pro</title>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
-    <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador Magenta + IA</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-    <div id="setup-panel">
-        <h2>VOICE MASTER</h2>
-        <input type="file" id="audioFile" accept="audio/*"><br><br>
-        <textarea id="lyricsInput" placeholder="Pega aquí la letra..."></textarea><br><br>
-        <button class="btn-ctrl btn-main" onclick="iniciarTodo()">
-            CARGAR Y ANALIZAR
-        </button>
-    </div>
+    <div id="setup-panel" class="panel">
+        <div class="card">
+            <h1>Cargar Canción & Analizar</h1>
+            <p>Sube tu música. La IA detectará la tonalidad antes de reproducir.</p>
+            
+            <div class="input-group">
+                <label>Archivo de Audio (.mp3, .wav)</label>
+                <input type="file" id="inputAudio" accept="audio/*">
+            </div>
 
-    <div id="footer-controls" class="hidden">
-        <div id="progress-container" onclick="clickBarra(event)">
-            <div id="progress-bar"></div>
-        </div>
+            <div class="input-group">
+                <label>Letra (Opcional)</label>
+                <textarea id="inputLyrics" placeholder="Pega la letra aquí..."></textarea>
+            </div>
 
-        <div id="controls-row">
-            <button class="btn-ctrl btn-change" onclick="cambiarCancion()">Nueva</button>
-            <button class="btn-ctrl" onclick="saltar(-10)">-10s</button>
-            <button class="btn-ctrl" id="playBtn" onclick="togglePlay()">PAUSA</button>
-            <button class="btn-ctrl btn-stop" onclick="detener()">STOP</button>
-            <button class="btn-ctrl" onclick="saltar(10)">+10s</button>
-            <div id="time">0 / 0</div>
+            <button id="btnCargar">Cargar y Analizar con IA</button>
+            <p id="status-msg" class="status"></p>
         </div>
     </div>
 
-    <div id="hud" class="hidden">
-        <div id="note">--</div>
+    <div id="visualizer-container" class="hidden">
+        <canvas id="canvas"></canvas>
+        
+        <div id="overlay">
+            <h2 id="display-tonality">Tonalidad: --</h2>
+            <div id="lyrics-display">Aquí iría la letra sincronizada...</div>
+        </div>
+        
+        <audio id="audio-player" controls></audio>
     </div>
 
-    <div id="lyrics-panel" class="hidden">
-        <h3>LETRA</h3>
-        <div id="lyrics-box"></div>
-    </div>
-
-    <script src="main.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
