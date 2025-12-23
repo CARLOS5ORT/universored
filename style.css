@@ -87,20 +87,15 @@ body {
 #hud {
     position: absolute;
     top: 20px;
-    left: 100px;
-    right: auto;
-    text-align: left;
+    right: 360px;
+    text-align: right;
 }
-
 
 #note {
     font-size: 60px;
     color: #ff00ff;
-}
-
-#key {
-    font-size: 18px;
-    color: #00f2ff;
+    font-weight: bold;
+    text-shadow: 0 0 10px #ff00ff;
 }
 
 /* LETRA */
@@ -126,4 +121,5 @@ body {
     display: block;
     padding: 4px 6px;
     color: #aaa;
+    border-bottom: 1px solid #333;
 }
