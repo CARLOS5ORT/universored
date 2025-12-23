@@ -2,6 +2,70 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <title>Voice Master Pro</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+    <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- ⬇️ NO debe iniciar hidden -->
+    <div id="setup-panel">
+        <h2>VOICE MASTER</h2>
+
+        <input type="file" id="audioFile" accept="audio/*"><br><br>
+
+        <textarea id="lyricsInput" placeholder="Pega aquí la letra..."></textarea><br><br>
+
+        <!-- 🔥 BOTÓN CORREGIDO -->
+        <button class="btn-ctrl btn-main" onclick="iniciarTodo()">
+            CARGAR Y ANALIZAR
+        </button>
+    </div>
+
+    <!-- TONALIDAD -->
+    <div id="tonality-display" class="hidden"
+         style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <span style="color:#ff00ff;font-size:1.5rem;font-weight:bold;text-shadow:0 0 10px #ff00ff;">
+            CLAVE: <span id="key-result">Analizando...</span>
+        </span>
+    </div>
+
+    <div id="footer-controls" class="hidden">
+        <div id="progress-container" onclick="clickBarra(event)">
+            <div id="progress-bar"></div>
+        </div>
+
+        <div id="controls-row">
+            <button class="btn-ctrl btn-change" onclick="cambiarCancion()">Nueva</button>
+            <button class="btn-ctrl" onclick="saltar(-10)">-10s</button>
+            <button class="btn-ctrl" id="playBtn" onclick="togglePlay()">PAUSA</button>
+            <button class="btn-ctrl btn-stop" onclick="detener()">STOP</button>
+            <button class="btn-ctrl" onclick="saltar(10)">+10s</button>
+            <div id="time">0 / 0</div>
+        </div>
+    </div>
+
+    <div id="hud" class="hidden">
+        <div id="note">--</div>
+    </div>
+
+    <div id="lyrics-panel" class="hidden">
+        <h3>LETRA</h3>
+        <div id="lyrics-box"></div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
     <title>TESTTTTT Voice Master Pro</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
@@ -52,6 +116,7 @@
     <script src="main.js"></script>
 </body>
 </html>
+
 
 
 
