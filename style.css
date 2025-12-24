@@ -188,3 +188,7 @@ body {
 canvas {
     display: block;
 }
+canvas {
+    pointer-events: none;
+}
+
