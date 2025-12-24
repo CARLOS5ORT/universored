@@ -1,29 +1,41 @@
+/* =======================
+   CONFIG
+======================= */
 const TIME_SCALE = 220;
 
-let song, mic, pitchUser, fftSong;
+let song = null;
+let mic = null;
+let pitchUser = null;
+let fftSong = null;
+
 let bars = [];
 let voiceTrail = [];
 let freqUser = 0;
 let ready = false;
-let audioReady = false;
 
 const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
 /* =======================
-   SETUP
+   p5 SETUP
 ======================= */
 function setup() {
     createCanvas(windowWidth, windowHeight);
     textFont("monospace");
 
+    // Estado inicial UI
     document.getElementById("setup-panel")?.classList.remove("hidden");
     document.getElementById("footer-controls")?.classList.add("hidden");
     document.getElementById("hud")?.classList.add("hidden");
+    document.getElementById("lyrics-panel")?.classList.add("hidden");
     document.getElementById("tonality-display")?.classList.add("hidden");
 }
 
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+}
+
 /* =======================
-   INICIO PRINCIPAL
+   INICIO
 ======================= */
 async function iniciarTodo() {
     if (ready) return;
@@ -39,8 +51,10 @@ async function iniciarTodo() {
     document.getElementById("hud").classList.remove("hidden");
 
     cargarLetra();
+
     await getAudioContext().resume();
 
+    // HuggingFace (NO bloquea)
     analizarTonalidadHF(file);
 
     song = loadSound(URL.createObjectURL(file), () => {
@@ -57,8 +71,8 @@ async function iniciarTodo() {
                 mic.stream,
                 () => {
                     ready = true;
-                    audioReady = true;
                     song.play();
+                    document.getElementById("playBtn").innerText = "PAUSA";
                 }
             );
         });
@@ -66,55 +80,33 @@ async function iniciarTodo() {
 }
 
 /* =======================
-   CONTROLES (🔥 FALTABAN)
-======================= */
-function togglePlay() {
-    if (!song || !audioReady) return;
-
-    if (song.isPlaying()) {
-        song.pause();
-    } else {
-        song.play();
-    }
-}
-
-function stopSong() {
-    if (!song) return;
-    song.stop();
-}
-
-function seek(seconds) {
-    if (!song) return;
-    let t = song.currentTime() + seconds;
-    t = constrain(t, 0, song.duration());
-    song.jump(t);
-}
-
-/* =======================
    DRAW
 ======================= */
 function draw() {
     background(5,5,15);
-    if (!ready || !song || !fftSong) return;
+    if (!ready || !song) return;
 
     drawGrid();
 
+    // Línea vertical central
     stroke(255,255,255,120);
     strokeWeight(2);
     line(width/2, 0, width/2, height);
 
     const now = song.currentTime();
 
+    /* === Pitch canción === */
     const fSong = detectPitchSong();
     if (fSong && fSong > 80 && fSong < 1100) {
-        if (!bars.length || now - bars[bars.length-1].time > 0.15) {
+        if (!bars.length || now - bars[bars.length - 1].time > 0.15) {
             bars.push({ y: freqToY(fSong), time: now });
         }
     }
 
-    bars = bars.filter(b => b.time > now - 5);
-    voiceTrail = voiceTrail.filter(v => v.time > now - 5);
+    bars = bars.filter(b => b.time > now - 6);
+    voiceTrail = voiceTrail.filter(v => v.time > now - 6);
 
+    /* === Barras canción === */
     stroke("#ff00ff");
     strokeWeight(12);
     for (let b of bars) {
@@ -123,9 +115,8 @@ function draw() {
         line(x, b.y, x + 45, b.y);
     }
 
-    if (pitchUser) {
-        pitchUser.getPitch((_, f) => freqUser = f || 0);
-    }
+    /* === Voz usuario === */
+    pitchUser.getPitch((_, f) => freqUser = f || 0);
 
     if (freqUser > 0) {
         voiceTrail.push({
@@ -142,7 +133,6 @@ function draw() {
 
         const x1 = width/2 + (p1.time - now) * TIME_SCALE;
         const x2 = width/2 + (p2.time - now) * TIME_SCALE;
-
         if (x2 < 80 || x1 > width) continue;
 
         if (p2.color === null && x1 < width/2 && x2 >= width/2) {
@@ -157,6 +147,7 @@ function draw() {
         line(x1, p1.y, x2, p2.y);
     }
 
+    /* === Punto actual === */
     if (freqUser > 0) {
         let y = freqToY(freqUser);
         fill(255); noStroke();
@@ -172,15 +163,18 @@ function draw() {
 }
 
 /* =======================
-   UTILIDADES
+   UTILIDADES AUDIO
 ======================= */
 function detectPitchSong() {
+    if (!fftSong) return null;
     let w = fftSong.waveform();
     let best = -1, bestCorr = 0;
 
-    for (let o=20; o<1000; o++) {
-        let c=0;
-        for (let i=0; i<w.length-o; i++) c += w[i] * w[i+o];
+    for (let o = 20; o < 1000; o++) {
+        let c = 0;
+        for (let i = 0; i < w.length - o; i++) {
+            c += w[i] * w[i + o];
+        }
         if (c > bestCorr) {
             bestCorr = c;
             best = o;
@@ -190,7 +184,7 @@ function detectPitchSong() {
 }
 
 function nearestBarY(time) {
-    let min = Infinity, y = height/2;
+    let min = Infinity, y = height / 2;
     for (let b of bars) {
         let d = Math.abs(b.time - time);
         if (d < min) { min = d; y = b.y; }
@@ -199,30 +193,76 @@ function nearestBarY(time) {
 }
 
 function freqToY(f) {
-    return map(Math.log(f), Math.log(80), Math.log(1100), height-160, 50);
+    return map(Math.log(f), Math.log(80), Math.log(1100), height - 160, 50);
 }
 
 function drawGrid() {
-    for (let i=36; i<84; i++) {
-        let f = 440 * Math.pow(2, (i-69)/12);
+    for (let i = 36; i < 84; i++) {
+        let f = 440 * Math.pow(2, (i - 69) / 12);
         let y = freqToY(f);
-        stroke(255,10);
+        stroke(255, 10);
         line(80, y, width, y);
         noStroke();
         fill(0,242,255,120);
-        text(notes[i%12], 25, y);
+        text(notes[i % 12], 25, y);
     }
+}
+
+/* =======================
+   CONTROLES
+======================= */
+function togglePlay() {
+    if (!song) return;
+    if (song.isPlaying()) {
+        song.pause();
+        document.getElementById("playBtn").innerText = "PLAY";
+    } else {
+        song.play();
+        document.getElementById("playBtn").innerText = "PAUSA";
+    }
+}
+
+function saltar(seg) {
+    if (!song) return;
+    let t = song.currentTime() + seg;
+    t = constrain(t, 0, song.duration());
+    song.jump(t);
+}
+
+function detener() {
+    if (!song) return;
+    song.stop();
+    document.getElementById("playBtn").innerText = "PLAY";
+}
+
+function cambiarCancion() {
+    if (song) song.stop();
+
+    bars = [];
+    voiceTrail = [];
+    ready = false;
+
+    document.getElementById("footer-controls").classList.add("hidden");
+    document.getElementById("hud").classList.add("hidden");
+    document.getElementById("lyrics-panel").classList.add("hidden");
+    document.getElementById("tonality-display").classList.add("hidden");
+    document.getElementById("setup-panel").classList.remove("hidden");
+}
+
+function clickBarra(e) {
+    if (!song) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - r.left) / r.width;
+    song.jump(song.duration() * pct);
 }
 
 /* =======================
    UI
 ======================= */
 function updateUI() {
-    if (!song || !song.isLoaded()) return;
-
+    if (!song) return;
     document.getElementById("progress-bar").style.width =
-        (song.currentTime()/song.duration()*100) + "%";
-
+        (song.currentTime() / song.duration() * 100) + "%";
     document.getElementById("time").innerText =
         Math.floor(song.currentTime()) + " / " + Math.floor(song.duration());
 }
@@ -236,7 +276,6 @@ function cargarLetra() {
 
     const box = document.getElementById("lyrics-box");
     box.innerHTML = "";
-
     t.split("\n").forEach(l => {
         if (l.trim()) {
             const s = document.createElement("span");
@@ -245,11 +284,11 @@ function cargarLetra() {
         }
     });
 
-    document.getElementById("lyrics-panel")?.classList.remove("hidden");
+    document.getElementById("lyrics-panel").classList.remove("hidden");
 }
 
 /* =======================
-   HUGGINGFACE (SE MANTIENE)
+   HUGGINGFACE (SAFE)
 ======================= */
 const HF_BASE = "https://carlos5ort-detector-tonalidad.hf.space";
 
@@ -257,41 +296,7 @@ async function analizarTonalidadHF(_) {
     try {
         document.getElementById("key-result").innerText = "Analizando...";
         document.getElementById("tonality-display").classList.remove("hidden");
-    } catch {}
-}
-
-/* =======================
-   COMPATIBILIDAD CON HTML
-======================= */
-
-function saltar(segundos) {
-    if (!song || !song.isLoaded()) return;
-
-    let t = song.currentTime() + segundos;
-    t = constrain(t, 0, song.duration());
-    song.jump(t);
-}
-
-function detener() {
-    if (!song) return;
-    song.stop();
-}
-
-function cambiarCancion() {
-    if (song) {
-        song.stop();
+    } catch (e) {
+        console.warn("HF no disponible");
     }
-
-    // reset visual
-    bars = [];
-    voiceTrail = [];
-    freqUser = 0;
-    ready = false;
-    audioReady = false;
-
-    document.getElementById("footer-controls")?.classList.add("hidden");
-    document.getElementById("hud")?.classList.add("hidden");
-    document.getElementById("tonality-display")?.classList.add("hidden");
-    document.getElementById("lyrics-panel")?.classList.add("hidden");
-    document.getElementById("setup-panel")?.classList.remove("hidden");
 }
