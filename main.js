@@ -244,10 +244,7 @@ function cargarLetra() {
 }
 
 /* =======================
-   HUGGINGFACE
-======================= */
-/* =======================
-   HUGGINGFACE (FIX REAL)
+   HUGGINGFACE (FIX DEFINITIVO)
 ======================= */
 const HF_BASE = "https://carlos5ort-detector-tonalidad.hf.space";
 
@@ -259,28 +256,42 @@ async function analizarTonalidadHF(file) {
     panel.classList.remove("hidden");
 
     try {
-        const formData = new FormData();
-        formData.append("file", file);
+        // ⬅️ convertir archivo a base64 (lo que Gradio SÍ entiende)
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(
+            new Uint8Array(arrayBuffer)
+                .reduce((d, b) => d + String.fromCharCode(b), "")
+        );
+
+        const payload = {
+            data: [
+                {
+                    name: file.name,
+                    data: `data:audio/${file.type.split("/")[1]};base64,${base64}`
+                }
+            ]
+        };
 
         const res = await fetch(`${HF_BASE}/run/predict`, {
             method: "POST",
-            body: formData
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const json = await res.json();
 
         /*
-          Gradio devuelve:
-          { data: ["C Mayor"] }  o similar
+          Respuesta típica:
+          { data: ["C Mayor"] }
         */
-        if (data?.data && data.data.length > 0) {
-            keyEl.innerText = data.data[0];
+        if (json?.data?.[0]) {
+            keyEl.innerText = json.data[0];
         } else {
-            keyEl.innerText = "No detectada";
+            keyEl.innerText = "Clave no detectada";
         }
 
     } catch (err) {
         console.error("HF ERROR:", err);
-        keyEl.innerText = "Error";
+        keyEl.innerText = "Error HF";
     }
 }
