@@ -259,3 +259,39 @@ async function analizarTonalidadHF(_) {
         document.getElementById("tonality-display").classList.remove("hidden");
     } catch {}
 }
+
+/* =======================
+   COMPATIBILIDAD CON HTML
+======================= */
+
+function saltar(segundos) {
+    if (!song || !song.isLoaded()) return;
+
+    let t = song.currentTime() + segundos;
+    t = constrain(t, 0, song.duration());
+    song.jump(t);
+}
+
+function detener() {
+    if (!song) return;
+    song.stop();
+}
+
+function cambiarCancion() {
+    if (song) {
+        song.stop();
+    }
+
+    // reset visual
+    bars = [];
+    voiceTrail = [];
+    freqUser = 0;
+    ready = false;
+    audioReady = false;
+
+    document.getElementById("footer-controls")?.classList.add("hidden");
+    document.getElementById("hud")?.classList.add("hidden");
+    document.getElementById("tonality-display")?.classList.add("hidden");
+    document.getElementById("lyrics-panel")?.classList.add("hidden");
+    document.getElementById("setup-panel")?.classList.remove("hidden");
+}
