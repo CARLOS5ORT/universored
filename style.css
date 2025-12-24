@@ -1,119 +1,190 @@
+/* =========================
+   BASE
+========================= */
 body {
     margin: 0;
-    padding: 0;
-    background-color: #050505; /* Casi negro */
-    color: white;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden; /* Evitar scrollbars durante la visualización */
+    background: #050508;
+    color: #00f2ff;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
 }
 
-/* --- PANEL DE CARGA --- */
-.panel {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background: radial-gradient(circle, #1a1a1a 0%, #000000 100%);
-    transition: opacity 1s ease;
-}
-
-.card {
-    background: #222;
-    padding: 2rem;
-    border-radius: 15px;
-    box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
-    width: 400px;
-    text-align: center;
-}
-
-.input-group {
-    margin-bottom: 1.5rem;
-    text-align: left;
-}
-
-input, textarea {
-    width: 100%;
-    padding: 10px;
-    margin-top: 5px;
-    background: #333;
-    border: 1px solid #444;
-    color: white;
-    border-radius: 5px;
-}
-
-button {
-    background: #ff00ff; /* MAGENTA */
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    font-size: 1.1rem;
-    border-radius: 30px;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    width: 100%;
-    font-weight: bold;
-}
-
-button:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px #ff00ff;
-}
-
-button:disabled {
-    background: #555;
-    cursor: wait;
-    transform: none;
-    box-shadow: none;
-}
-
-.status {
-    margin-top: 15px;
-    font-size: 0.9rem;
-    color: #aaa;
-    min-height: 20px;
-}
-
-/* --- VISUALIZADOR --- */
 .hidden {
     display: none !important;
 }
 
-#visualizer-container {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
+/* =========================
+   SETUP PANEL
+========================= */
+#setup-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(20,20,40,0.95);
+    padding: 30px;
+    border: 2px solid #00f2ff;
+    border-radius: 20px;
+    width: 360px;
+    text-align: center;
+    z-index: 100;
 }
 
-canvas {
-    display: block;
+#setup-panel h2 {
+    margin-top: 0;
+    color: #ff00ff;
+}
+
+#setup-panel input,
+#setup-panel textarea {
     width: 100%;
-    height: 100%;
+    background: #000;
+    color: #00f2ff;
+    border: 1px solid #00f2ff;
+    border-radius: 8px;
+    padding: 8px;
+    margin-top: 8px;
 }
 
-#overlay {
+#setup-panel textarea {
+    height: 120px;
+    resize: none;
+}
+
+/* =========================
+   BOTONES
+========================= */
+.btn-ctrl {
+    background: transparent;
+    border: 1px solid #00f2ff;
+    color: #00f2ff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.btn-ctrl:hover {
+    background: #00f2ff;
+    color: #000;
+}
+
+.btn-main {
+    background: #00f2ff;
+    color: #000;
+    font-weight: bold;
+}
+
+.btn-stop {
+    border-color: #ff4444;
+    color: #ff4444;
+}
+
+.btn-change {
+    border-color: #ffaa00;
+    color: #ffaa00;
+}
+
+/* =========================
+   FOOTER CONTROLS
+========================= */
+#footer-controls {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: rgba(0,0,0,0.95);
+    border-top: 1px solid #333;
+    padding: 10px 0 20px 0;
+    z-index: 50;
+}
+
+#progress-container {
+    width: 90%;
+    height: 12px;
+    background: #222;
+    margin: 10px auto;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#progress-bar {
+    width: 0%;
+    height: 100%;
+    background: #00f2ff;
+}
+
+#controls-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+/* =========================
+   HUD
+========================= */
+#hud {
     position: absolute;
     top: 20px;
-    left: 20px;
-    pointer-events: none; /* Permite clicks a través del texto */
+    right: 360px;
+    text-align: right;
+    z-index: 20;
 }
 
-#display-tonality {
-    font-size: 3rem;
+#note {
+    font-size: 60px;
     color: #ff00ff;
-    text-shadow: 0 0 10px rgba(255, 0, 255, 0.8);
-    margin: 0;
+    text-shadow: 0 0 10px #ff00ff;
 }
 
-#audio-player {
-    position: absolute;
+/* =========================
+   TONALIDAD
+========================= */
+#tonality-display {
+    position: fixed;
     bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    opacity: 0.5;
-    transition: opacity 0.3s;
+    right: 20px;
+    z-index: 30;
 }
 
-#audio-player:hover {
-    opacity: 1;
+#tonality-display span {
+    color: #ff00ff;
+    font-size: 1.4rem;
+    font-weight: bold;
+    text-shadow: 0 0 10px #ff00ff;
+}
+
+/* =========================
+   LETRA
+========================= */
+#lyrics-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    max-height: 70%;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid #00f2ff;
+    border-radius: 14px;
+    padding: 12px;
+    overflow-y: auto;
+    z-index: 20;
+}
+
+#lyrics-panel h3 {
+    text-align: center;
+    margin-top: 0;
+}
+
+#lyrics-box span {
+    display: block;
+    padding: 4px 6px;
+    color: #aaa;
+}
+
+/* =========================
+   CANVAS
+========================= */
+canvas {
+    display: block;
 }
